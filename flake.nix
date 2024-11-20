@@ -25,11 +25,18 @@
         };
 
         nativeBuildInputs = with pkgs; [ openssl pkg-config ];
-        buildInputs = with pkgs; [ openssl pkg-config ];
+        # buildInputs = with pkgs; [ openssl pkg-config ];
       };
 
       devShell.${system} = pkgs.mkShell {
-        buildInputs = with pkgs; [ rustup cargo pkg-config openssl ];
+        buildInputs = with pkgs; [ 
+          rustup 
+          cargo 
+          pkg-config 
+          openssl 
+          nodejs_23
+          yarn
+        ];
       };
     };
 }

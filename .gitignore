@@ -3,3 +3,4 @@
 /result
 secret.json
 archive_config.toml
+**/node_modules
