@@ -1,9 +1,12 @@
 pub struct GPhotosDownloader {
-  token: String,
+  access_token: String,
+  
 }
 
 impl GPhotosDownloader {
-  pub fn new(token: String) -> Self {
-    Self { token }
+  pub fn new(access_token: String) -> Self {
+    Self { access_token }
   }
+
+  
 }

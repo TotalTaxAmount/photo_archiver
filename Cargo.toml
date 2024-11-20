@@ -1,7 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-  "gphotos-downloader"
+  "gphotos-downloader",
+  "archive-config"
 ]
 
 
@@ -12,6 +13,7 @@ edition = "2021"
 
 [dependencies]
 gphotos-downloader = { path = "gphotos-downloader" }
+archive-config = { path = "archive-config" }
 webrs = { git = "https://github.com/TotalTaxAmount/webrs", branch = "master" }
 log = "0.4.22"
 tokio = { version = "1.41.1", features = [ "full"] }
@@ -21,5 +23,3 @@ oauth2 = "4.2"
 serde = { version = "1.0.215", features = [ "derive" ]}
 serde_json = "1.0.133"
 local-ip-address = "0.6.3"
-toml = "0.8.19"
-lazy_static = "1.5.0"

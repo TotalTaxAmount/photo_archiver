@@ -7,18 +7,13 @@ use std::{
   time::Duration,
 };
 
+use archive_config::CONFIG;
 use gphotos_downloader::GPhotosDownloader;
-use lazy_static::lazy_static;
 use log::{error, info};
 use oauth::{oauth::OAuth, OAuthParameters};
-use photo_archiver::config::Config;
 use serde_json::error;
 use tokio::sync::Mutex;
 use webrs::server::WebrsHttp;
-
-lazy_static! {
-  pub static ref CONFIG: Config = Config::parse(var("CONFIG_PATH").unwrap());
-}
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {

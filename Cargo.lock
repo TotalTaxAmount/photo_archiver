@@ -57,6 +57,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "archive-config"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "log",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1035,9 +1045,9 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 name = "photo_archiver"
 version = "0.0.1"
 dependencies = [
+ "archive-config",
  "async-trait",
  "gphotos-downloader",
- "lazy_static",
  "local-ip-address",
  "log",
  "oauth2",
@@ -1045,7 +1055,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "toml",
  "webrs",
 ]
 

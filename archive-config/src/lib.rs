@@ -7,8 +7,13 @@ use std::{
   process::exit,
 };
 
+use lazy_static::lazy_static;
 use log::{error, warn};
 use serde::{Deserialize, Serialize};
+
+lazy_static! {
+  pub static ref CONFIG: Config = Config::parse(var("CONFIG_PATH").unwrap());
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ServerConfig {
@@ -72,7 +77,7 @@ impl Config {
         "No config file! Creating and saving default to {}",
         path.to_string()
       );
-      exit(0);
+      exit(1);
     }
 
     let config: Self = toml::from_str(&std::fs::read_to_string(path).unwrap_or_else(|e| {

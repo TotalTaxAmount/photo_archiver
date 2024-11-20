@@ -4,6 +4,7 @@ use std::{
   sync::{Arc, LazyLock, Mutex},
 };
 
+use archive_config::CONFIG;
 use async_trait::async_trait;
 use log::info;
 use oauth2::{
@@ -13,8 +14,6 @@ use oauth2::{
 };
 use serde_json::{json, to_string};
 use webrs::{api::ApiMethod, request::Request, response::Response};
-
-use crate::CONFIG;
 
 use super::OAuthParameters;
 
@@ -88,14 +87,9 @@ impl OAuth {
     info!("Access token: {}", hidden);
     self.access_token = Some(access_token);
 
-    let mut res = Response::new(200, "application/json");
-    res.set_data(
-      to_string(&json!({
-        "success": "ok"
-      }))
-      .unwrap()
-      .into_bytes(),
-    );
+    let mut res = Response::basic(302, "Found");
+    res.add_header("location".to_string(), "/");
+    
     Some(res)
   }
 
