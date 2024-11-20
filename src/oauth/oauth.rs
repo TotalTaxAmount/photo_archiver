@@ -14,6 +14,8 @@ use oauth2::{
 use serde_json::{json, to_string};
 use webrs::{api::ApiMethod, request::Request, response::Response};
 
+use crate::CONFIG;
+
 use super::OAuthParameters;
 
 pub struct OAuth {
@@ -33,7 +35,11 @@ impl OAuth {
       )),
     )
     .set_redirect_uri(
-      RedirectUrl::new("http://localhost:8080/api/oauth/callback".to_string()).unwrap(),
+      RedirectUrl::new(format!(
+        "http://localhost:{}/api/oauth/callback",
+        CONFIG.server.port
+      ))
+      .unwrap(),
     );
 
     Self {
@@ -57,18 +63,8 @@ impl OAuth {
 
     (auth_url.0.to_string(), pkce_verifier)
   }
-}
 
-#[async_trait]
-impl ApiMethod for OAuth {
-  fn get_endpoint(&self) -> &str {
-    "/oauth/callback"
-  }
-
-  async fn handle_get<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>>
-  where
-    'r: 's,
-  {
+  async fn handle_callback<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
     let query = req.get_url_params();
     let code = query.get("code")?.to_string();
 
@@ -101,6 +97,32 @@ impl ApiMethod for OAuth {
       .into_bytes(),
     );
     Some(res)
+  }
+
+  async fn handle_new_url<'s, 'r>(&'s mut self) -> Option<Response<'r>> {
+    let (url, pkce_code) = self.generate_auth_url();
+    *self.pkce_verifier.lock().unwrap() = Some(pkce_code);
+    Some(Response::from_json(200, json!({
+      "oauth_url": url,
+    })).unwrap())
+  }
+}
+
+#[async_trait]
+impl ApiMethod for OAuth {
+  fn get_endpoint(&self) -> &str {
+    "/oauth"
+  }
+
+  async fn handle_get<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>>
+  where
+    'r: 's,
+  {
+    match req.get_endpoint().rsplit("/").next() {
+      Some(e) if e == "callback" => return self.handle_callback(req).await,
+      Some(e) if e == "new" => return self.handle_new_url().await,
+      Some(_) | None => return Some(Response::basic(400,"Bad Request"))
+    }
   }
 
   async fn handle_post<'s, 'r>(&'s mut self, _req: Request<'r>) -> Option<Response<'r>>

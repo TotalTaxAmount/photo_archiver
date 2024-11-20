@@ -8,12 +8,17 @@ use std::{
 };
 
 use gphotos_downloader::GPhotosDownloader;
+use lazy_static::lazy_static;
 use log::{error, info};
 use oauth::{oauth::OAuth, OAuthParameters};
-use photo_archiver::Config;
+use photo_archiver::config::Config;
 use serde_json::error;
 use tokio::sync::Mutex;
 use webrs::server::WebrsHttp;
+
+lazy_static! {
+  pub static ref CONFIG: Config = Config::parse(var("CONFIG_PATH").unwrap());
+}
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -29,9 +34,7 @@ async fn main() -> std::io::Result<()> {
     set_var("CONFIG_PATH", "archive_config.toml");
   }
 
-  let config: Config = Config::parse(var("CONFIG_PATH").unwrap());
-
-  let oauth_params = match OAuthParameters::parse(config.client_secret_path) {
+  let oauth_params = match OAuthParameters::parse(&CONFIG.server.client_secret_path) {
     Ok(o) => o,
     Err(e) => {
       error!("Failed to read secrets file: {}", e);
@@ -40,21 +43,15 @@ async fn main() -> std::io::Result<()> {
   };
   let oauth_method = OAuth::new(oauth_params);
 
-  let (auth_url, pkce_verifier) = oauth_method.generate_auth_url();
-
-  info!("Open this URL:\n{}", auth_url);
-
-  *oauth_method.pkce_verifier.lock().unwrap() = Some(pkce_verifier);
-
   let http_server = WebrsHttp::new(
     vec![Arc::new(Mutex::new(oauth_method))],
-    config.port,
+    CONFIG.server.port,
     (
-      config.compression.zstd,
-      config.compression.br,
-      config.compression.gzip,
+      CONFIG.server.compression.zstd,
+      CONFIG.server.compression.br,
+      CONFIG.server.compression.gzip,
     ),
-    config.content_dir,
+    CONFIG.server.content_dir.clone(),
   );
 
   http_server.start().await?;
