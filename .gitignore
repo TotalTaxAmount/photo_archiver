@@ -2,3 +2,4 @@
 /.direnv
 /result
 secret.json
+archive_config.toml

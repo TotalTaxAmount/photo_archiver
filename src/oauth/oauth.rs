@@ -1,11 +1,15 @@
 use std::{
-  fmt::format, str::FromStr, sync::{Arc, LazyLock, Mutex}
+  fmt::format,
+  str::FromStr,
+  sync::{Arc, LazyLock, Mutex},
 };
 
 use async_trait::async_trait;
 use log::info;
 use oauth2::{
-  basic::BasicClient, reqwest::async_http_client, url::Url, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse, TokenUrl
+  basic::BasicClient, reqwest::async_http_client, url::Url, AuthUrl, AuthorizationCode, ClientId,
+  ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
+  TokenUrl,
 };
 use serde_json::{json, to_string};
 use webrs::{api::ApiMethod, request::Request, response::Response};
@@ -14,6 +18,7 @@ use super::OAuthParameters;
 
 pub struct OAuth {
   oauth_client: BasicClient,
+  access_token: Option<String>,
   pub pkce_verifier: Arc<Mutex<Option<PkceCodeVerifier>>>,
 }
 
@@ -33,6 +38,7 @@ impl OAuth {
 
     Self {
       oauth_client,
+      access_token: None,
       pkce_verifier: Arc::new(Mutex::new(None)),
     }
   }
@@ -59,7 +65,7 @@ impl ApiMethod for OAuth {
     "/oauth/callback"
   }
 
-  async fn handle_get<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>>
+  async fn handle_get<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>>
   where
     'r: 's,
   {
@@ -70,7 +76,8 @@ impl ApiMethod for OAuth {
 
     let pkce_verifier = self.pkce_verifier.lock().unwrap().take()?;
 
-    let token_res = self.oauth_client
+    let token_res = self
+      .oauth_client
       .exchange_code(auth_code)
       .set_pkce_verifier(pkce_verifier)
       .request_async(async_http_client)
@@ -83,15 +90,20 @@ impl ApiMethod for OAuth {
       format!("{}{}", f, "*".repeat(l.len()))
     };
     info!("Access token: {}", hidden);
+    self.access_token = Some(access_token);
 
     let mut res = Response::new(200, "application/json");
-    res.set_data(to_string(&json!({
-      "success": "ok"
-    })).unwrap().into_bytes());
+    res.set_data(
+      to_string(&json!({
+        "success": "ok"
+      }))
+      .unwrap()
+      .into_bytes(),
+    );
     Some(res)
   }
 
-  async fn handle_post<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>>
+  async fn handle_post<'s, 'r>(&'s mut self, _req: Request<'r>) -> Option<Response<'r>>
   where
     'r: 's,
   {
