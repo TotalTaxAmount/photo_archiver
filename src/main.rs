@@ -36,7 +36,7 @@ async fn main() -> std::io::Result<()> {
       exit(-1);
     }
   };
-  let oauth_method = OAuth::new(oauth_params);
+  let oauth_method = Arc::new(Mutex::new(OAuth::new(oauth_params)));
 
   let http_server = WebrsHttp::new(
     CONFIG.server.port,
@@ -49,9 +49,26 @@ async fn main() -> std::io::Result<()> {
   );
 
   http_server
-    .register_method(Arc::new(Mutex::new(oauth_method)))
+    .register_method(oauth_method.clone())
     .await;
+
+  let http_server_clone = http_server.clone();
+  let http_server_task = tokio::spawn(async move {
+    let s = http_server.clone();
+    s.start().await
+  });
+
   
-  http_server.start().await?;
+  loop {
+    if let Some(t) = oauth_method.lock().await.get_access_code() {
+      info!("Yessir: {}", t);
+      break;
+    }
+  }
+
+  http_server_clone.stop().await;
+  let _ = http_server_task.await;
+
+  info!("Shutting down...");
   Ok(())
 }

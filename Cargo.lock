@@ -1876,7 +1876,7 @@ checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
 [[package]]
 name = "webrs"
 version = "0.2.0"
-source = "git+https://github.com/TotalTaxAmount/webrs?branch=master#5ee4bf5ce93642f923e94e63c53d61b0ca909cff"
+source = "git+https://github.com/TotalTaxAmount/webrs?branch=master#10590126a9b690c6e51cbb152577fa6450a49ce8"
 dependencies = [
  "async-trait",
  "brotli",

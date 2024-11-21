@@ -20,7 +20,7 @@
         cargoLock = {
           lockFile = ./Cargo.lock;
           outputHashes = {
-            "webrs-0.2.0" = "sha256-qkau3nzyKK7qcnl+YBabu40HXafxD0qKCg+ZMsk+oiA=";
+            "webrs-0.2.0" = "sha256-XDtd1pWYIufMln6SBxlu/ZtO5YaqBspwfwbbo8spjxo=";
           };
         };
 

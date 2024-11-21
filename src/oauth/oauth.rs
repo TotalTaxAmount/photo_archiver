@@ -48,6 +48,10 @@ impl OAuth {
     }
   }
 
+  pub fn get_access_code(&self) -> Option<String> {
+    self.access_token.clone()
+  }
+
   pub fn generate_auth_url(&self) -> (String, PkceCodeVerifier) {
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
