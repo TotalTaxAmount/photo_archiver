@@ -89,16 +89,22 @@ impl OAuth {
 
     let mut res = Response::basic(302, "Found");
     res.add_header("location".to_string(), "/");
-    
+
     Some(res)
   }
 
   async fn handle_new_url<'s, 'r>(&'s mut self) -> Option<Response<'r>> {
     let (url, pkce_code) = self.generate_auth_url();
     *self.pkce_verifier.lock().unwrap() = Some(pkce_code);
-    Some(Response::from_json(200, json!({
-      "oauth_url": url,
-    })).unwrap())
+    Some(
+      Response::from_json(
+        200,
+        json!({
+          "oauth_url": url,
+        }),
+      )
+      .unwrap(),
+    )
   }
 }
 
@@ -115,7 +121,7 @@ impl ApiMethod for OAuth {
     match req.get_endpoint().rsplit("/").next() {
       Some(e) if e == "callback" => return self.handle_callback(req).await,
       Some(e) if e == "new" => return self.handle_new_url().await,
-      Some(_) | None => return Some(Response::basic(400,"Bad Request"))
+      Some(_) | None => return Some(Response::basic(400, "Bad Request")),
     }
   }
 

@@ -8,6 +8,6 @@ fn main() {
       .status()
       .unwrap_or_else(|e| panic!("Failed to run `yarn build` {}", e));
   } else {
-      println!("Skipping `yarn build`");
+    println!("Skipping `yarn build`");
   }
 }

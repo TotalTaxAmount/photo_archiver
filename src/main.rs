@@ -39,7 +39,6 @@ async fn main() -> std::io::Result<()> {
   let oauth_method = OAuth::new(oauth_params);
 
   let http_server = WebrsHttp::new(
-    vec![Arc::new(Mutex::new(oauth_method))],
     CONFIG.server.port,
     (
       CONFIG.server.compression.zstd,
@@ -49,6 +48,10 @@ async fn main() -> std::io::Result<()> {
     CONFIG.server.content_dir.clone(),
   );
 
+  http_server
+    .register_method(Arc::new(Mutex::new(oauth_method)))
+    .await;
+  
   http_server.start().await?;
   Ok(())
 }
