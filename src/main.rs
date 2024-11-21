@@ -1,23 +1,16 @@
-mod oauth;
+mod user;
 
-use std::{
-  env::{set_var, var},
-  process::exit,
-  sync::Arc,
-  time::Duration,
-};
+use std::env::{set_var, var};
 
 use archive_config::CONFIG;
-use gphotos_downloader::GPhotosDownloader;
-use log::{error, info};
-use oauth::{oauth::OAuth, OAuthParameters};
-use serde_json::error;
-use tokio::sync::Mutex;
+use log::info;
+use reqwest::Client;
+use user::user::user_manager::UserManager;
 use webrs::server::WebrsHttp;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-  if let Err(_) = var("LOGLEVEL") {
+  if var("LOGLEVEL").is_err() {
     set_var("LOGLEVEL", "info");
   }
   pretty_env_logger::formatted_timed_builder()
@@ -25,18 +18,9 @@ async fn main() -> std::io::Result<()> {
     .format_timestamp_millis()
     .init();
 
-  if let Err(_) = var("CONFIG_PATH") {
+  if var("CONFIG_PATH").is_err() {
     set_var("CONFIG_PATH", "archive_config.toml");
   }
-
-  let oauth_params = match OAuthParameters::parse(&CONFIG.server.client_secret_path) {
-    Ok(o) => o,
-    Err(e) => {
-      error!("Failed to read secrets file: {}", e);
-      exit(-1);
-    }
-  };
-  let oauth_method = Arc::new(Mutex::new(OAuth::new(oauth_params)));
 
   let http_server = WebrsHttp::new(
     CONFIG.server.port,
@@ -48,27 +32,37 @@ async fn main() -> std::io::Result<()> {
     CONFIG.server.content_dir.clone(),
   );
 
-  http_server
-    .register_method(oauth_method.clone())
-    .await;
+  let user_manager = UserManager::new(http_server.clone());
+  user_manager.lock().await.init().await;
+  http_server.register_method(user_manager.clone()).await;
 
   let http_server_clone = http_server.clone();
-  let http_server_task = tokio::spawn(async move {
+  
+  tokio::spawn(async move {
     let s = http_server.clone();
     s.start().await
   });
 
-  
   loop {
-    if let Some(t) = oauth_method.lock().await.get_access_code() {
-      info!("Yessir: {}", t);
+    if let Some(t) = user_manager.lock().await.get_oauth().lock().await.get_access_code() {
+      let client = Client::new();
+
+      let res = client
+        .get("https://photoslibrary.googleapis.com/v1/mediaItems")
+        .bearer_auth(t)
+        .send()
+        .await.unwrap();
+
+      if res.status().is_success() {
+        let res_text = res.text().await.unwrap();
+        info!("Items: {}", res_text);
+      }
+
       break;
     }
   }
 
   http_server_clone.stop().await;
-  let _ = http_server_task.await;
-
   info!("Shutting down...");
   Ok(())
 }

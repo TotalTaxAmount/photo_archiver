@@ -1,7 +1,6 @@
 use std::{
-  fmt::format,
   str::FromStr,
-  sync::{Arc, LazyLock, Mutex},
+  sync::{Arc, Mutex},
 };
 
 use archive_config::CONFIG;
@@ -12,18 +11,18 @@ use oauth2::{
   ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
   TokenUrl,
 };
-use serde_json::{json, to_string};
+use serde_json::json;
 use webrs::{api::ApiMethod, request::Request, response::Response};
 
 use super::OAuthParameters;
 
-pub struct OAuth {
+pub struct OAuthMethod {
   oauth_client: BasicClient,
   access_token: Option<String>,
   pub pkce_verifier: Arc<Mutex<Option<PkceCodeVerifier>>>,
 }
 
-impl OAuth {
+impl OAuthMethod {
   pub fn new(oauth_params: OAuthParameters) -> Self {
     let oauth_client = BasicClient::new(
       ClientId::new(oauth_params.client_id),
@@ -57,7 +56,7 @@ impl OAuth {
 
     let auth_url = self
       .oauth_client
-      .authorize_url(|| CsrfToken::new_random())
+      .authorize_url(CsrfToken::new_random)
       .add_scope(Scope::new(
         "https://www.googleapis.com/auth/photoslibrary.readonly".to_string(),
       ))
@@ -113,7 +112,7 @@ impl OAuth {
 }
 
 #[async_trait]
-impl ApiMethod for OAuth {
+impl ApiMethod for OAuthMethod {
   fn get_endpoint(&self) -> &str {
     "/oauth"
   }

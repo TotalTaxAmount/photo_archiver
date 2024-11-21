@@ -1,6 +1,5 @@
-use core::error;
 use std::{
-  env::{set_var, var},
+  env::var,
   fs::{read_to_string, File},
   io::Write,
   path::Path,
@@ -41,7 +40,7 @@ impl Default for Config {
       server: ServerConfig {
         port: 8080,
         content_dir: "html".to_string(),
-        client_secret_path: "secrets.json".to_string(),
+        client_secret_path: "secret.json".to_string(),
         compression: Compression {
           zstd: true,
           br: true,

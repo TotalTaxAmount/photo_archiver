@@ -2,7 +2,7 @@ use std::{error::Error, fs::read_to_string, path::Path};
 
 use serde::Deserialize;
 
-pub mod oauth;
+pub mod oauth_api;
 
 #[derive(Deserialize, Debug)]
 pub struct OAuthParameters {
