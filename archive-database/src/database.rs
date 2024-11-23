@@ -5,7 +5,7 @@ use log::{debug, error, info};
 use tokio::{sync::Mutex, time::timeout};
 use tokio_postgres::{Client, NoTls, Row};
 
-use crate::structs::{DatabaseError, User};
+use crate::structs::{DatabaseError, User, UserWrapper};
 
 pub type SharedDatabase = Arc<Mutex<Database>>;
 
@@ -66,7 +66,10 @@ impl Database {
     Ok(())
   }
 
-  pub async fn get_users(&self) -> Result<Vec<User>, DatabaseError> {
+  /// Get a  Vec of all the users in the database
+  ///
+  /// Returns Vec<UserWrapper> if getting users was successful or a DatabaseError if it was not
+  pub async fn get_users(&self) -> Result<Vec<UserWrapper>, DatabaseError> {
     if self.client.is_none() {
       error!("Database is not initialized");
       return Err(DatabaseError::new("Database not initialized"));
@@ -81,12 +84,59 @@ impl Database {
       }
     };
 
-    let mut res: Vec<User> = Vec::new();
+    let mut res: Vec<UserWrapper> = Vec::new();
 
     for row in rows {
       res.insert(res.len(), row.try_into()?);
     }
 
     Ok(res)
+  }
+
+  /// Updates an existing user
+  ///
+  /// Returns Ok(()) if the user was successfully modified or a DatabaseError if the operation failed
+  pub async fn update_user(&self, user: UserWrapper) -> Result<(), DatabaseError> {
+    // TODO: We need to get the user id so we need full wrapper
+    if self.client.is_none() {
+      error!("Database is not initialized");
+      return Err(DatabaseError::new("Database not initialized"));
+    }
+    todo!()
+  }
+
+  /// Creates an new user
+  ///
+  /// Returns Ok(()) if the user was successfully created or a DatabaseError if the operation failed
+  pub async fn new_user(&self, user: User) -> Result<u64, DatabaseError> {
+    if self.client.is_none() {
+      error!("Database is not initialized");
+      return Err(DatabaseError::new("Database not initialized"));
+    }
+    let c = self.client.as_ref().unwrap();
+
+    let res = c.execute(
+      "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
+      &[&user.get_username(), &user.get_password_hash()],
+    ).await.map_err(|e| {
+      if e.as_db_error().map_or(false, |db_error| db_error.code().code() == "23505") {
+        DatabaseError::new("User already exists")
+      } else {
+        DatabaseError::new(e)
+      }
+    });
+
+    res
+  }
+
+  /// Delate an existing user
+  ///
+  /// Returns Ok(()) if the user was deleted successfully or a DatabaseError if the operation failed
+  pub async fn delate_user(&self, user: UserWrapper) -> Result<(), DatabaseError> {
+    if self.client.is_none() {
+      error!("Database is not initialized");
+      return Err(DatabaseError::new("Database not initialized"));
+    }
+    todo!()
   }
 }

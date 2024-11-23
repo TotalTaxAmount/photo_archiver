@@ -1,7 +1,10 @@
 use std::{collections::HashMap, process::exit, sync::Arc};
 
 use archive_config::CONFIG;
-use archive_database::{database::{Database, SharedDatabase}, structs::User};
+use archive_database::{
+  database::{Database, SharedDatabase},
+  structs::UserWrapper,
+};
 use async_trait::async_trait;
 use log::error;
 use tokio::sync::Mutex;
