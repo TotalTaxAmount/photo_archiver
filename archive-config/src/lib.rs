@@ -1,13 +1,7 @@
-use std::{
-  env::var,
-  fs::{read_to_string, File},
-  io::Write,
-  path::Path,
-  process::exit,
-};
+use std::{env::var, fs::File, io::Write, net::Ipv4Addr, path::Path, process::exit};
 
 use lazy_static::lazy_static;
-use log::{error, warn};
+use log::error;
 use serde::{Deserialize, Serialize};
 
 lazy_static! {
@@ -29,9 +23,20 @@ pub struct Compression {
   pub gzip: bool,
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct DatabaseConfig {
+  pub ip: Ipv4Addr,
+  pub port: u16,
+  pub timeout: u64,
+  pub username: String,
+  pub password: String,
+  pub dbname: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
   pub server: ServerConfig,
+  pub database: DatabaseConfig,
 }
 
 impl Default for Config {
@@ -46,6 +51,14 @@ impl Default for Config {
           br: true,
           gzip: true,
         },
+      },
+      database: DatabaseConfig {
+        ip: Ipv4Addr::new(127, 0, 0, 1),
+        port: 5432,
+        timeout: 5,
+        username: "username".to_string(),
+        password: "password".to_string(),
+        dbname: "photoarchiver".to_string(),
       },
     }
   }

@@ -4,4 +4,5 @@
 #### TODO:
 - [ ] Write the frontend
 - [ ] Fix the build in `flake.nix`
-- [ ] Interact with google apis (besides getting auth token)
+- [x] Interact with google apis (besides getting auth token)
+- [ ] Use more type alias: (ex: Arc<Mutex<**Whatever**>> -> Shared**Whatever**)

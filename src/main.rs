@@ -3,7 +3,8 @@ mod user;
 use std::env::{set_var, var};
 
 use archive_config::CONFIG;
-use log::info;
+use archive_database::database::Database;
+use log::{info, trace};
 use reqwest::Client;
 use user::user::user_manager::UserManager;
 use webrs::server::WebrsHttp;
@@ -32,26 +33,36 @@ async fn main() -> std::io::Result<()> {
     CONFIG.server.content_dir.clone(),
   );
 
-  let user_manager = UserManager::new(http_server.clone());
+  let mut database = Database::new(CONFIG.database.clone());
+  let user_manager = UserManager::new(http_server.clone(), database.clone());
   user_manager.lock().await.init().await;
+  database.lock().await.init().await;
   http_server.register_method(user_manager.clone()).await;
 
   let http_server_clone = http_server.clone();
-  
+
   tokio::spawn(async move {
     let s = http_server.clone();
     s.start().await
   });
 
   loop {
-    if let Some(t) = user_manager.lock().await.get_oauth().lock().await.get_access_code() {
+    if let Some(t) = user_manager
+      .lock()
+      .await
+      .get_oauth()
+      .lock()
+      .await
+      .get_access_code()
+    {
       let client = Client::new();
 
       let res = client
         .get("https://photoslibrary.googleapis.com/v1/mediaItems")
         .bearer_auth(t)
         .send()
-        .await.unwrap();
+        .await
+        .unwrap();
 
       if res.status().is_success() {
         let res_text = res.text().await.unwrap();

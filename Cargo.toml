@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
   "gphotos-downloader",
-  "archive-config"
+  "archive-config", 
+  "archive-database"
 ]
 
 
@@ -14,6 +15,7 @@ edition = "2021"
 [dependencies]
 gphotos-downloader = { path = "gphotos-downloader" }
 archive-config = { path = "archive-config" }
+archive-database = { path = "archive-database" }
 webrs = { git = "https://github.com/TotalTaxAmount/webrs", branch = "master" }
 log = "0.4.22"
 tokio = { version = "1.41.1", features = [ "full"] }

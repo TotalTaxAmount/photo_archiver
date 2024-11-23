@@ -1,0 +1,10 @@
+[package]
+name = "archive-database"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+archive-config = { path = "../archive-config"}
+log = "0.4.22"
+tokio = { version = "1.41.1", features = [ "full" ] }
+tokio-postgres = "0.7.12" 

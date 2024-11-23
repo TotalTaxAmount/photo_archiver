@@ -1,32 +1,25 @@
 use std::{collections::HashMap, process::exit, sync::Arc};
 
 use archive_config::CONFIG;
+use archive_database::{database::{Database, SharedDatabase}, structs::User};
 use async_trait::async_trait;
 use log::error;
 use tokio::sync::Mutex;
-use webrs::{
-  api::ApiMethod, request::Request, response::Response, server::{WebrsHttp}
-};
+use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
 
 use crate::user::oauth::{oauth_api::OAuthMethod, OAuthParameters};
 
-struct User {
-  username: String,
-  gapi_token: Option<String>,
-  session_token: Option<String>,
-}
-
 pub struct UserManager {
-  users: HashMap<String, User>,
-  server: Arc<WebrsHttp>,
+  database: SharedDatabase,
+  http_server: Arc<WebrsHttp>,
   oauth: Arc<Mutex<OAuthMethod>>,
 }
 
 impl UserManager {
-  pub fn new(server: Arc<WebrsHttp>) -> Arc<Mutex<Self>> {
+  pub fn new(http_server: Arc<WebrsHttp>, database: SharedDatabase) -> Arc<Mutex<Self>> {
     Arc::new(Mutex::new(Self {
-      server,
-      users: HashMap::new(),
+      http_server,
+      database,
       oauth: Arc::new(Mutex::new(OAuthMethod::new(
         OAuthParameters::parse(&CONFIG.server.client_secret_path).unwrap_or_else(|e| {
           error!("Failed to parse client secret: {} Exiting...", e);
@@ -37,7 +30,7 @@ impl UserManager {
   }
 
   pub async fn init(&self) {
-    self.server.register_method(self.oauth.clone()).await;
+    self.http_server.register_method(self.oauth.clone()).await;
   }
 
   pub fn get_oauth(&self) -> Arc<Mutex<OAuthMethod>> {
@@ -59,22 +52,22 @@ impl ApiMethod for UserManager {
     "/users"
   }
 
-  async fn handle_get<'s, 'r>(&'s mut self, _req: Request<'r>) -> Option<Response<'r>> 
-  where 
-    'r: 's
+  async fn handle_get<'s, 'r>(&'s mut self, _req: Request<'r>) -> Option<Response<'r>>
+  where
+    'r: 's,
   {
     None
   }
 
   async fn handle_post<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>>
-  where 
-    'r: 's
+  where
+    'r: 's,
   {
     match req.get_endpoint().rsplit("/").next() {
-      Some(e) if e == "new" => return self.handle_new_user(req).await,
-      Some(e) if e == "login" => return self.handle_user_login(req).await, 
+      Some("new") => return self.handle_new_user(req).await,
+      Some("login") => return self.handle_user_login(req).await,
       Some(_) | None => {
-        return Some(Response::basic(404,"Not Found"));
+        return Some(Response::basic(404, "Not Found"));
       }
     }
   }

@@ -122,8 +122,8 @@ impl ApiMethod for OAuthMethod {
     'r: 's,
   {
     match req.get_endpoint().rsplit("/").next() {
-      Some(e) if e == "callback" => return self.handle_callback(req).await,
-      Some(e) if e == "new" => return self.handle_new_url().await,
+      Some("callback") => return self.handle_callback(req).await,
+      Some("new") => return self.handle_new_url().await,
       Some(_) | None => return Some(Response::basic(400, "Bad Request")),
     }
   }
