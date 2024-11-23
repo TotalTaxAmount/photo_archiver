@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 archive-config = { path = "../archive-config"}
+jwt = "0.16.0"
 log = "0.4.22"
+serde = "1.0.215"
 tokio = { version = "1.41.1", features = [ "full" ] }
 tokio-postgres = "0.7.12" 

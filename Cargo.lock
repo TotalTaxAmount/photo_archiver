@@ -71,7 +71,9 @@ name = "archive-database"
 version = "0.1.0"
 dependencies = [
  "archive-config",
+ "jwt",
  "log",
+ "serde",
  "tokio",
  "tokio-postgres",
 ]
@@ -966,6 +968,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "jwt"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6204285f77fe7d9784db3fdc449ecce1a0114927a51d5a41c4c7a292011c015f"
+dependencies = [
+ "base64 0.13.1",
+ "crypto-common",
+ "digest",
+ "hmac",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1255,6 +1272,7 @@ dependencies = [
  "archive-database",
  "async-trait",
  "gphotos-downloader",
+ "jwt",
  "lazy_static",
  "local-ip-address",
  "log",
@@ -1263,6 +1281,7 @@ dependencies = [
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "webrs",
 ]

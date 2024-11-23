@@ -1,10 +1,13 @@
 mod user;
 
-use std::env::{set_var, var};
+use std::{
+  env::{set_var, var},
+  process::exit,
+};
 
 use archive_config::CONFIG;
 use archive_database::{database::Database, structs::User};
-use log::{info, trace};
+use log::{error, info, trace};
 use reqwest::Client;
 use user::user::user_manager::UserManager;
 use webrs::server::WebrsHttp;
@@ -33,14 +36,15 @@ async fn main() -> std::io::Result<()> {
     CONFIG.server.content_dir.clone(),
   );
 
-  let mut database = Database::new(CONFIG.database.clone());
+  let database = Database::new(CONFIG.database.clone());
   let user_manager = UserManager::new(http_server.clone(), database.clone());
+
+  database.lock().await.init().await.unwrap_or_else(|e| {
+    error!("Failed to initialize database: {}", e);
+    exit(1)
+  });
   user_manager.lock().await.init().await;
-  let _ = database.lock().await.init().await;
   http_server.register_method(user_manager.clone()).await;
-  database.lock().await.new_user(User::new("foobar", "unique_hash")).await.unwrap();
-  let users = database.lock().await.get_users().await;
-  info!("{:?}", users);
 
   let http_server_clone = http_server.clone();
 

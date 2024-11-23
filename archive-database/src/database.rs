@@ -1,11 +1,13 @@
-use std::{process::exit, sync::Arc, time::Duration};
+use std::{
+  any::Any, borrow::Borrow, f32::consts::E, fmt::Display, process::exit, sync::Arc, time::Duration,
+};
 
 use archive_config::{DatabaseConfig, CONFIG};
 use log::{debug, error, info};
 use tokio::{sync::Mutex, time::timeout};
-use tokio_postgres::{Client, NoTls, Row};
+use tokio_postgres::{row, types::Field, Client, NoTls, Row};
 
-use crate::structs::{DatabaseError, User, UserWrapper};
+use crate::structs::{DatabaseError, User, UserFields, UserWrapper};
 
 pub type SharedDatabase = Arc<Mutex<Database>>;
 
@@ -69,7 +71,7 @@ impl Database {
   /// Get a  Vec of all the users in the database
   ///
   /// Returns Vec<UserWrapper> if getting users was successful or a DatabaseError if it was not
-  pub async fn get_users(&self) -> Result<Vec<UserWrapper>, DatabaseError> {
+  pub async fn get_all_users(&self) -> Result<Vec<UserWrapper>, DatabaseError> {
     if self.client.is_none() {
       error!("Database is not initialized");
       return Err(DatabaseError::new("Database not initialized"));
@@ -93,16 +95,72 @@ impl Database {
     Ok(res)
   }
 
+  pub async fn get_user_by<V>(
+    &self,
+    field: UserFields,
+    value: V,
+  ) -> Result<UserWrapper, DatabaseError>
+  where
+    V: ToString,
+  {
+    if self.client.is_none() {
+      error!("Database is not initialized");
+      return Err(DatabaseError::new("Database not initialized"));
+    }
+
+    let users = self.get_all_users().await?;
+
+    let value_string = value.to_string();
+
+    let u = users.iter().find(|user| match field {
+      UserFields::Id => value_string.parse::<i32>() == Ok(user.get_id()),
+      UserFields::Username => value_string == user.get_inner_user().borrow().get_username(),
+      UserFields::PasswordHash => {
+        value_string == user.get_inner_user().borrow().get_password_hash()
+      }
+      UserFields::CreatedAt => value_string.parse::<i64>() == Ok(user.get_created_at()),
+    });
+
+    match u {
+      Some(u) => UserWrapper::try_from(u.clone()).map_err(|e| DatabaseError::new(e)),
+      None => {
+        let err_msg = format!(
+          "Failed to get user by {:?} with value {}",
+          field,
+          value.to_string()
+        );
+        error!("{}", err_msg);
+        Err(DatabaseError::new(err_msg))
+      }
+    }
+  }
+
   /// Updates an existing user
   ///
   /// Returns Ok(()) if the user was successfully modified or a DatabaseError if the operation failed
-  pub async fn update_user(&self, user: UserWrapper) -> Result<(), DatabaseError> {
+  pub async fn update_user(
+    &self,
+    id: i32,
+    username: String,
+    password_hash: String,
+  ) -> Result<u64, DatabaseError> {
     // TODO: We need to get the user id so we need full wrapper
     if self.client.is_none() {
       error!("Database is not initialized");
       return Err(DatabaseError::new("Database not initialized"));
     }
-    todo!()
+
+    let c = self.client.as_ref().unwrap();
+
+    let res = c
+      .execute(
+        "UPDATE USERS SET username=$1, password_hash=$2 WHERE id = $3",
+        &[&username, &password_hash, &id],
+      )
+      .await
+      .map_err(|e| DatabaseError::new(e));
+
+    res
   }
 
   /// Creates an new user
@@ -115,16 +173,22 @@ impl Database {
     }
     let c = self.client.as_ref().unwrap();
 
-    let res = c.execute(
-      "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
-      &[&user.get_username(), &user.get_password_hash()],
-    ).await.map_err(|e| {
-      if e.as_db_error().map_or(false, |db_error| db_error.code().code() == "23505") {
-        DatabaseError::new("User already exists")
-      } else {
-        DatabaseError::new(e)
-      }
-    });
+    let res = c
+      .execute(
+        "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
+        &[&user.get_username(), &user.get_password_hash()],
+      )
+      .await
+      .map_err(|e| {
+        if e
+          .as_db_error()
+          .map_or(false, |db_error| db_error.code().code() == "23505")
+        {
+          DatabaseError::new("User already exists")
+        } else {
+          DatabaseError::new(e)
+        }
+      });
 
     res
   }
@@ -132,11 +196,18 @@ impl Database {
   /// Delate an existing user
   ///
   /// Returns Ok(()) if the user was deleted successfully or a DatabaseError if the operation failed
-  pub async fn delate_user(&self, user: UserWrapper) -> Result<(), DatabaseError> {
+  pub async fn delate_user(&self, user_id: i32) -> Result<u64, DatabaseError> {
     if self.client.is_none() {
       error!("Database is not initialized");
       return Err(DatabaseError::new("Database not initialized"));
     }
-    todo!()
+
+    let c = self.client.as_ref().unwrap();
+
+    let res = c
+      .execute("DELATE FROM users WHERE id = $1", &[&user_id])
+      .await
+      .map_err(|e| DatabaseError::new(e));
+    res
   }
 }
