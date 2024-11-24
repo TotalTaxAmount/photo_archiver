@@ -1,7 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, fmt::format, process::exit, sync::Arc};
+use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, fmt::format, process::exit, sync::Arc};
 
 use archive_config::CONFIG;
-use archive_database::{database::SharedDatabase, structs::User};
+use archive_database::{database::SharedDatabase, entities::users, structs::User};
 use async_trait::async_trait;
 use jwt::{token::Signed, Claims, Header, Token};
 use log::{debug, error};
@@ -19,6 +19,7 @@ pub struct UserManager {
   database: SharedDatabase,
   http_server: Arc<WebrsHttp>,
   oauth: Arc<Mutex<OAuthMethod>>,
+  active_users: HashMap<i32, User>
 }
 
 impl UserManager {
@@ -32,6 +33,7 @@ impl UserManager {
           exit(1)
         }),
       ))),
+      active_users: HashMap::new()
     }))
   }
 
@@ -43,7 +45,7 @@ impl UserManager {
     self.oauth.clone()
   }
 
-  pub async fn generate_session_token(&self, user: RefCell<User>) -> Token<Header, Claims, Signed> {
+  pub async fn generate_session_token(&self, user: User) -> Token<Header, Claims, Signed> {
     todo!()
   }
 
@@ -59,15 +61,21 @@ impl UserManager {
 
   async fn handle_new_user<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
     let json: Value = match serde_json::from_slice(&req.get_data()) {
-        Ok(j) => j,
-        Err(_) => todo!(),
+      Ok(j) => j,
+      Err(_) => todo!(),
     };
 
     let username: &str = json["username"].as_str()?;
     let password: &str = json["password"].as_str()?;
-    match self.database.lock().await.new_user(User::new(username, &Self::hash_password(password))).await {
-      Ok(r) => {
-        debug!("Modified {} rows", r);
+    match self
+      .database
+      .lock()
+      .await
+      .new_user(User::new(username, &Self::hash_password(password)))
+      .await
+    {
+      Ok(_) => {
+        debug!("Added new user");
         Some(
           Response::from_json(
             200,
@@ -93,27 +101,29 @@ impl UserManager {
     }
   }
 
-  async fn handle_user_login<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
-    let req_user = match serde_json::from_slice::<User>(&req.get_data()) {
-      Ok(u) => u,
-      Err(e) => todo!(),
+  async fn handle_user_login<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
+    let json: Value = match serde_json::from_slice(&req.get_data()) {
+      Ok(j) => j,
+      Err(_) => todo!(),
     };
 
-    if let Ok(u) = {
-      let username = req_user.get_username();
+    let username = json["username"].as_str()?;
+    let password = json["password"].as_str()?;
+
+    if let Ok(mut u) = {
       self
         .database
         .lock()
         .await
-        .get_user_by(archive_database::structs::UserFields::Username, &username)
+        .get_user_by(users::Column::Username, username)
         .await
     } {
-      let u = u.get_inner_user();
-      if req_user.get_password_hash() == u.borrow().get_password_hash() {
+      if Self::hash_password(password) == u.get_password_hash() {
         let session_token = self.generate_session_token(u.clone()).await;
         let session_token_string = session_token.as_str();
         u.borrow_mut().set_session_token(session_token_string);
 
+        self.active_users.insert(u.get_id(), u);
         return Some(
           Response::from_json(
             200,

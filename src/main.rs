@@ -6,7 +6,7 @@ use std::{
 };
 
 use archive_config::CONFIG;
-use archive_database::{database::Database, structs::User};
+use archive_database::{database::PhotoArchiverDatabase, structs::User};
 use log::{error, info, trace};
 use reqwest::Client;
 use user::user::user_manager::UserManager;
@@ -36,7 +36,7 @@ async fn main() -> std::io::Result<()> {
     CONFIG.server.content_dir.clone(),
   );
 
-  let database = Database::new(CONFIG.database.clone());
+  let database = PhotoArchiverDatabase::new(CONFIG.database.clone());
   let user_manager = UserManager::new(http_server.clone(), database.clone());
 
   database.lock().await.init().await.unwrap_or_else(|e| {

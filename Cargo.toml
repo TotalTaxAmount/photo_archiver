@@ -3,7 +3,8 @@ resolver = "2"
 members = [
   "gphotos-downloader",
   "archive-config", 
-  "archive-database"
+  "archive-database",
+  "migration"
 ]
 
 

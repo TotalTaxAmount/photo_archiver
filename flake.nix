@@ -36,6 +36,7 @@
           openssl 
           nodejs_23
           yarn
+          sea-orm-cli
         ];
       };
     };

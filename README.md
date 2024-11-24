@@ -8,3 +8,4 @@
 - [ ] Use more type alias: (ex: Arc<Mutex<**Whatever**>> -> Shared**Whatever**)
 - [ ] Give users a role (Admin, Member, etc)
 - [ ] Write documentation
+- [ ] Migration stuff

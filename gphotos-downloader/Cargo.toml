@@ -3,6 +3,10 @@ name = "gphotos-downloader"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "gphotos_downloader"
+path = "src/lib.rs"
+
 [dependencies]
 archive-database = { path = "../archive-database"}
 serde = { version = "1.0.215", features = [ "derive" ]}

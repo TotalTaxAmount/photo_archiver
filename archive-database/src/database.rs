@@ -1,22 +1,27 @@
-use std::{
-  any::Any, borrow::Borrow, f32::consts::E, fmt::Display, process::exit, sync::Arc, time::Duration,
-};
+use std::{process::exit, sync::Arc, time::Duration};
 
 use archive_config::{DatabaseConfig, CONFIG};
 use log::{debug, error, info};
-use tokio::{sync::Mutex, time::timeout};
-use tokio_postgres::{row, types::Field, Client, NoTls, Row};
+use sea_orm::{
+  ActiveModelTrait, ColumnTrait, ConnectOptions, DatabaseConnection, EntityTrait, Iden,
+  IntoActiveModel, QueryFilter, Set,
+};
+use serde::de::value::Error;
+use tokio::sync::Mutex;
 
-use crate::structs::{DatabaseError, User, UserFields, UserWrapper};
+use crate::{
+  entities::users,
+  structs::{DatabaseError, User},
+};
 
-pub type SharedDatabase = Arc<Mutex<Database>>;
+pub type SharedDatabase = Arc<Mutex<PhotoArchiverDatabase>>;
 
-pub struct Database {
+pub struct PhotoArchiverDatabase {
   config: DatabaseConfig,
-  client: Option<Client>,
+  client: Option<DatabaseConnection>,
 }
 
-impl Database {
+impl PhotoArchiverDatabase {
   pub fn new(config: DatabaseConfig) -> SharedDatabase {
     Arc::new(Mutex::new(Self {
       config,
@@ -24,39 +29,30 @@ impl Database {
     }))
   }
 
-  pub async fn init(&mut self) -> Result<(), tokio_postgres::Error> {
+  pub async fn init(&mut self) -> Result<(), Error> {
     debug!("Initializing database connection");
     let connection_string = format!(
-      "hostaddr={} port={} user={} password={} dbname={}",
-      self.config.ip,
-      self.config.port,
+      "postgres://{}:{}@{}:{}/{}",
       self.config.username,
       self.config.password,
+      self.config.ip,
+      self.config.port,
       self.config.dbname
     );
 
-    let res = timeout(
-      Duration::from_secs(CONFIG.database.timeout.into()),
-      tokio_postgres::connect(&connection_string, NoTls),
-    )
-    .await;
+    let mut options = ConnectOptions::new(connection_string);
+    options.connect_timeout(Duration::from_secs(CONFIG.database.timeout));
 
-    let (client, connection) = match res {
-      Ok(r) => r.unwrap_or_else(|e| {
-        error!("Failed to connect to database: {}", e);
-        exit(1)
-      }),
-      Err(_) => {
-        error!("Connection to database timed out");
+    let client = match sea_orm::Database::connect(options).await {
+      Ok(r) => r,
+      Err(e) => {
+        error!(
+          "Failed to connect to database at {}:{}: {}",
+          CONFIG.database.ip, CONFIG.database.port, e
+        );
         exit(1)
       }
     };
-
-    tokio::spawn(async move {
-      if let Err(e) = connection.await {
-        eprintln!("Connection error: {}", e);
-      }
-    });
 
     info!(
       "Connected to database at {}:{}",
@@ -70,68 +66,46 @@ impl Database {
 
   /// Get a  Vec of all the users in the database
   ///
-  /// Returns Vec<UserWrapper> if getting users was successful or a DatabaseError if it was not
-  pub async fn get_all_users(&self) -> Result<Vec<UserWrapper>, DatabaseError> {
-    if self.client.is_none() {
-      error!("Database is not initialized");
-      return Err(DatabaseError::new("Database not initialized"));
+  /// Returns Vec<User> if getting users was successful or a DatabaseError if it was not
+  pub async fn get_all_users(&self) -> Result<Vec<User>, DatabaseError> {
+    if self.client.is_none() || !self.client.as_ref().unwrap().ping().await.is_ok() {
+      error!("Database is not initialized or the connection is invalid");
+      return Err(DatabaseError::new(
+        "Database is not initialized or the connection is invalid",
+      ));
     }
 
-    let c = self.client.as_ref().unwrap();
-    let rows: Vec<Row> = match c.query("SELECT * FROM USERS", &[]).await {
-      Ok(r) => r,
-      Err(e) => {
-        error!("Failed to get users from database: {}", e);
-        return Err(DatabaseError::new("Failed to get users from database"));
-      }
-    };
+    let db = self.client.as_ref().unwrap();
+    let models = users::Entity::find().all(db).await.unwrap();
 
-    let mut res: Vec<UserWrapper> = Vec::new();
-
-    for row in rows {
-      res.insert(res.len(), row.try_into()?);
-    }
-
+    let res = models.iter().map(|m| m.clone().into()).collect();
     Ok(res)
   }
 
-  pub async fn get_user_by<V>(
-    &self,
-    field: UserFields,
-    value: V,
-  ) -> Result<UserWrapper, DatabaseError>
+  pub async fn get_user_by<V>(&self, field: users::Column, value: V) -> Result<User, DatabaseError>
   where
-    V: ToString,
+    V: Into<sea_orm::Value>,
   {
-    if self.client.is_none() {
-      error!("Database is not initialized");
-      return Err(DatabaseError::new("Database not initialized"));
+    if self.client.is_none() || !self.client.as_ref().unwrap().ping().await.is_ok() {
+      error!("Database is not initialized or the connection is invalid");
+      return Err(DatabaseError::new(
+        "Database is not initialized or the connection is invalid",
+      ));
     }
 
-    let users = self.get_all_users().await?;
+    let db = self.client.as_ref().unwrap();
+    let user = users::Entity::find()
+      .filter(field.eq(value.into()))
+      .one(db)
+      .await
+      .map_err(|e| {
+        error!("Error querying that database: {}", e);
+        DatabaseError::new("Failed to query the database")
+      })?;
 
-    let value_string = value.to_string();
-
-    let u = users.iter().find(|user| match field {
-      UserFields::Id => value_string.parse::<i32>() == Ok(user.get_id()),
-      UserFields::Username => value_string == user.get_inner_user().borrow().get_username(),
-      UserFields::PasswordHash => {
-        value_string == user.get_inner_user().borrow().get_password_hash()
-      }
-      UserFields::CreatedAt => value_string.parse::<i64>() == Ok(user.get_created_at()),
-    });
-
-    match u {
-      Some(u) => UserWrapper::try_from(u.clone()).map_err(|e| DatabaseError::new(e)),
-      None => {
-        let err_msg = format!(
-          "Failed to get user by {:?} with value {}",
-          field,
-          value.to_string()
-        );
-        error!("{}", err_msg);
-        Err(DatabaseError::new(err_msg))
-      }
+    match user {
+      Some(m) => Ok(m.into()),
+      None => Err(DatabaseError::new("User not found")),
     }
   }
 
@@ -143,71 +117,84 @@ impl Database {
     id: i32,
     username: String,
     password_hash: String,
-  ) -> Result<u64, DatabaseError> {
-    // TODO: We need to get the user id so we need full wrapper
-    if self.client.is_none() {
-      error!("Database is not initialized");
-      return Err(DatabaseError::new("Database not initialized"));
+  ) -> Result<(), DatabaseError> {
+    if self.client.is_none() || !self.client.as_ref().unwrap().ping().await.is_ok() {
+      error!("Database is not initialized or the connection is invalid");
+      return Err(DatabaseError::new(
+        "Database is not initialized or the connection is invalid",
+      ));
     }
 
-    let c = self.client.as_ref().unwrap();
+    let db = self.client.as_ref().unwrap();
 
-    let res = c
-      .execute(
-        "UPDATE USERS SET username=$1, password_hash=$2 WHERE id = $3",
-        &[&username, &password_hash, &id],
-      )
-      .await
-      .map_err(|e| DatabaseError::new(e));
+    let user = users::Entity::find_by_id(id).one(db).await.map_err(|e| {
+      error!("Failed to fetch user: {}", e);
+      DatabaseError::new("Failed to fetch user")
+    })?;
 
-    res
+    let mut user_mut = match user {
+      Some(u) => u.into_active_model(),
+      None => return Err(DatabaseError::new("User not found")),
+    };
+
+    user_mut.username = Set(username);
+    user_mut.password_hash = Set(password_hash);
+
+    let _ = user_mut.update(db).await.map_err(|e| {
+      error!("Failed to update user: {}", e);
+      DatabaseError::new("Failed to update user")
+    })?;
+
+    Ok(())
   }
 
   /// Creates an new user
   ///
   /// Returns Ok(()) if the user was successfully created or a DatabaseError if the operation failed
-  pub async fn new_user(&self, user: User) -> Result<u64, DatabaseError> {
-    if self.client.is_none() {
-      error!("Database is not initialized");
-      return Err(DatabaseError::new("Database not initialized"));
+  pub async fn new_user(&self, user: User) -> Result<(), DatabaseError> {
+    if self.client.is_none() || !self.client.as_ref().unwrap().ping().await.is_ok() {
+      error!("Database is not initialized or the connection is invalid");
+      return Err(DatabaseError::new(
+        "Database is not initialized or the connection is invalid",
+      ));
     }
-    let c = self.client.as_ref().unwrap();
+    let db = self.client.as_ref().unwrap();
 
-    let res = c
-      .execute(
-        "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
-        &[&user.get_username(), &user.get_password_hash()],
-      )
-      .await
-      .map_err(|e| {
-        if e
-          .as_db_error()
-          .map_or(false, |db_error| db_error.code().code() == "23505")
-        {
-          DatabaseError::new("User already exists")
-        } else {
-          DatabaseError::new(e)
-        }
-      });
+    let new_user = users::ActiveModel {
+      username: Set(user.get_username()),
+      password_hash: Set(user.get_password_hash()),
+      ..Default::default()
+    };
 
-    res
+    let _ = new_user.insert(db).await.map_err(|e| {
+      error!("Error inserting new user: {}", e);
+      return DatabaseError::new("Failed to insert new user");
+    })?;
+
+    Ok(())
   }
 
   /// Delate an existing user
   ///
   /// Returns Ok(()) if the user was deleted successfully or a DatabaseError if the operation failed
-  pub async fn delate_user(&self, user_id: i32) -> Result<u64, DatabaseError> {
-    if self.client.is_none() {
-      error!("Database is not initialized");
-      return Err(DatabaseError::new("Database not initialized"));
+  pub async fn delate_user(&self, user_id: i32) -> Result<(), DatabaseError> {
+    if self.client.is_none() || !self.client.as_ref().unwrap().ping().await.is_ok() {
+      error!("Database is not initialized or the connection is invalid");
+      return Err(DatabaseError::new(
+        "Database is not initialized or the connection is invalid",
+      ));
     }
 
-    let c = self.client.as_ref().unwrap();
+    let db = self.client.as_ref().unwrap();
 
-    let res = c
-      .execute("DELATE FROM users WHERE id = $1", &[&user_id])
+    let _ = users::Entity::delete_by_id(user_id)
+      .exec(db)
       .await
-      .map_err(|e| DatabaseError::new(e));
-    res
+      .map_err(|e| {
+        error!("Failed to delete user: {}", e);
+        DatabaseError::new("Failed to delete user")
+      })?;
+
+    Ok(())
   }
 }

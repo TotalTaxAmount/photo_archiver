@@ -3,50 +3,44 @@ use std::{cell::RefCell, path::Display};
 
 use jwt::{token::Signed, Claims, Header, Token};
 use serde::{de::value::Error, Deserialize, Serialize};
-use tokio_postgres::{types::Type, Row};
 
-#[derive(Debug)]
-pub enum UserFields {
-  Id,
-  Username,
-  PasswordHash,
-  CreatedAt,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UserWrapper {
-  id: i32,
-  created_at: i64,
-  user: RefCell<User>,
-}
+use crate::entities::users::{self, Model};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
-  username: String,
-  password_hash: String,
+  model: users::Model,
   gapi_token: Option<String>,
   session_token: Option<String>,
 }
 
 impl User {
-  pub fn new<S>(username: S, password_hash: S) -> Self
-  where
-    S: ToString,
-  {
+  pub fn new<S: ToString>(username: S, password_hash: S) -> Self {
     Self {
-      username: username.to_string(),
-      password_hash: password_hash.to_string(),
+      model: users::Model {
+        username: username.to_string(),
+        password_hash: password_hash.to_string(),
+        id: -1,
+        created_at: None,
+      },
       gapi_token: None,
       session_token: None,
     }
   }
 
   pub fn get_username(&self) -> String {
-    self.username.clone()
+    self.model.username.clone()
   }
 
   pub fn get_password_hash(&self) -> String {
-    self.password_hash.clone()
+    self.model.password_hash.clone()
+  }
+
+  pub fn get_id(&self) -> i32 {
+    self.model.id
+  }
+
+  pub fn get_created_at(&self) -> Option<i64> {
+    self.model.created_at
   }
 
   pub fn get_gapi_token(&self) -> Option<String> {
@@ -61,14 +55,14 @@ impl User {
   where
     S: ToString,
   {
-    self.username = new_username.to_string()
+    self.model.username = new_username.to_string()
   }
 
   pub fn set_password_hash<S>(&mut self, new_password_hash: S)
   where
     S: ToString,
   {
-    self.password_hash = new_password_hash.to_string()
+    self.model.password_hash = new_password_hash.to_string()
   }
 
   pub fn set_gapi_token<S>(&mut self, gapi_token: S)
@@ -83,6 +77,12 @@ impl User {
     S: ToString,
   {
     self.session_token = Some(session_token.to_string())
+  }
+}
+
+impl From<users::Model> for User {
+  fn from(value: users::Model) -> Self {
+    Self { model: value, gapi_token: None, session_token: None }
   }
 }
 
@@ -109,44 +109,5 @@ impl DatabaseError {
 
   pub fn get_message(&self) -> String {
     self.message.clone()
-  }
-}
-
-impl UserWrapper {
-  pub fn get_id(&self) -> i32 {
-    self.id
-  }
-
-  pub fn get_created_at(&self) -> i64 {
-    self.created_at
-  }
-
-  pub fn get_inner_user(&self) -> RefCell<User> {
-    self.user.clone()
-  }
-}
-
-impl TryFrom<Row> for UserWrapper {
-  type Error = DatabaseError;
-
-  fn try_from(value: Row) -> Result<Self, Self::Error> {
-    let id = value
-      .try_get("id")
-      .map_err(|_| Self::Error::new("Failed to get 'id' from row"))?;
-    let username: String = value
-      .try_get("username")
-      .map_err(|_| Self::Error::new("Failed to get 'username' from row"))?;
-    let password_hash: String = value
-      .try_get("password_hash")
-      .map_err(|_| Self::Error::new("Failed to get 'hashed_password' from row"))?;
-    let created_at = value
-      .try_get("created_at")
-      .map_err(|_| Self::Error::new("Failed to get 'created_at' from row"))?;
-
-    Ok(UserWrapper {
-      id,
-      created_at,
-      user: RefCell::new(User::new(username, password_hash)),
-    })
   }
 }
