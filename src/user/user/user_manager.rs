@@ -1,18 +1,48 @@
-use std::{borrow::BorrowMut, collections::HashMap, process::exit, sync::Arc};
+use core::fmt;
+use std::{
+  borrow::BorrowMut,
+  collections::{BTreeMap, HashMap},
+  fmt::write,
+  process::exit,
+  sync::Arc,
+};
 
 use archive_config::CONFIG;
 use archive_database::{database::SharedDatabase, entities::users, structs::User};
 use async_trait::async_trait;
-use jwt::{token::Signed, Claims, Header, Token};
+use hmac::{Hmac, Mac};
+use jwt::{token::Signed, Claims, Header, SignWithKey, Token};
 use log::{debug, error};
+use rand::Rng;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use sha2::{digest::InvalidLength, Digest, Sha256};
 use tokio::sync::Mutex;
 use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
 
 use crate::user::oauth::{oauth_api::OAuthMethod, OAuthParameters};
 
 pub type SharedUserManager = Arc<Mutex<UserManager>>;
+
+#[derive(Debug)]
+pub enum UserManagerError {
+  TokenError(String),
+}
+
+impl fmt::Display for UserManagerError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      UserManagerError::TokenError(msg) => write!(f, "Token Error: {}", msg),
+    }
+  }
+}
+
+impl std::error::Error for UserManagerError {
+  fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    match self {
+      UserManagerError::TokenError(_) => None,
+    }
+  }
+}
 
 #[derive(Clone)]
 pub struct UserManager {
@@ -46,8 +76,38 @@ impl UserManager {
     self.oauth.clone()
   }
 
-  pub async fn generate_session_token(&self, user: User) -> Token<Header, Claims, Signed> {
-    todo!()
+  #[inline]
+  pub fn get_active_users(&self) -> &HashMap<i32, User> {
+    &self.active_users
+  }
+
+  pub fn generate_session_token(
+    user: User,
+  ) -> Result<Token<Header, BTreeMap<String, String>, Signed>, UserManagerError> {
+    let mut rng = rand::thread_rng();
+    let mut random_bytes = [0u8; 256];
+    rng.fill(&mut random_bytes);
+
+    let key: Hmac<Sha256> = Hmac::new_from_slice(&random_bytes).map_err(|e| {
+      error!("Failed to create new HMAC key: {}", e);
+      UserManagerError::TokenError(e.to_string())
+    })?;
+
+    let mut claims: BTreeMap<String, String> = BTreeMap::new();
+    claims.insert("username".to_string(), user.get_username().clone());
+    claims.insert(
+      "exp".to_string(),
+      (chrono::Utc::now() + chrono::Duration::days(1))
+        .timestamp()
+        .to_string(),
+    );
+
+    let header = Header::default();
+
+    Token::new(header, claims).sign_with_key(&key).map_err(|e| {
+      error!("Error signing token with key: {}", e);
+      UserManagerError::TokenError(e.to_string())
+    })
   }
 
   pub fn hash_password<S: ToString>(password: S) -> String {
@@ -142,16 +202,16 @@ impl UserManager {
         .await
     } {
       if Self::hash_password(password) == u.get_password_hash() {
-        let session_token = self.generate_session_token(u.clone()).await;
-        let session_token_string = session_token.as_str();
-        u.borrow_mut().set_session_token(session_token_string);
+        let session_token = Self::generate_session_token(u.clone());
+        let session_token = session_token.unwrap();
+        u.borrow_mut().set_session_token(session_token.as_str());
 
         self.active_users.insert(u.get_id(), u);
         return Some(
           Response::from_json(
             200,
             json!({
-              "token": session_token_string
+              "token": session_token.as_str()
             }),
           )
           .unwrap(),

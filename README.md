@@ -9,3 +9,4 @@
 - [ ] Give users a role (Admin, Member, etc)
 - [ ] Write documentation
 - [ ] Migration stuff
+- [ ] Refresh tokens

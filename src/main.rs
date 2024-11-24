@@ -54,6 +54,7 @@ async fn main() -> std::io::Result<()> {
   });
 
   loop {
+    println!("{:?}", user_manager.lock().await.get_active_users());
     if let Some(t) = user_manager
       .lock()
       .await
