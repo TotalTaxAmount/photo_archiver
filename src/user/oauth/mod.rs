@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub mod oauth_api;
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct OAuthParameters {
   client_id: String,
   project_id: String,
@@ -21,6 +22,7 @@ struct OAuthWrapper {
 }
 
 impl OAuthParameters {
+  #[inline]
   pub fn parse<P: AsRef<Path>>(creds_file_path: P) -> Result<Self, Box<dyn Error>> {
     let creds_contents = read_to_string(creds_file_path)?;
     let oauth: OAuthWrapper = serde_json::from_str(&creds_contents)?;

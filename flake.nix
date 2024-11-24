@@ -20,12 +20,12 @@
         cargoLock = {
           lockFile = ./Cargo.lock;
           outputHashes = {
-            "webrs-0.2.0" = "sha256-XDtd1pWYIufMln6SBxlu/ZtO5YaqBspwfwbbo8spjxo=";
+            "webrs-0.2.0" = "sha256-uh/pQGV+FVnDKpjzjzB2KJzqkMeITIhyfZaJUQVJZp0=";
           };
         };
 
-        nativeBuildInputs = with pkgs; [ openssl pkg-config ];
-        # buildInputs = with pkgs; [ openssl pkg-config ];
+        nativeBuildInputs = with pkgs; [ pkg-config yarn ];
+        buildInputs = with pkgs; [ openssl ];
       };
 
       devShell.${system} = pkgs.mkShell {

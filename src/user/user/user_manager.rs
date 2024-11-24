@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, fmt::format, process::exit, sync::Arc};
+use std::{borrow::BorrowMut, collections::HashMap, process::exit, sync::Arc};
 
 use archive_config::CONFIG;
 use archive_database::{database::SharedDatabase, entities::users, structs::User};
@@ -19,7 +19,7 @@ pub struct UserManager {
   database: SharedDatabase,
   http_server: Arc<WebrsHttp>,
   oauth: Arc<Mutex<OAuthMethod>>,
-  active_users: HashMap<i32, User>
+  active_users: HashMap<i32, User>,
 }
 
 impl UserManager {
@@ -33,7 +33,7 @@ impl UserManager {
           exit(1)
         }),
       ))),
-      active_users: HashMap::new()
+      active_users: HashMap::new(),
     }))
   }
 
@@ -41,6 +41,7 @@ impl UserManager {
     self.http_server.register_method(self.oauth.clone()).await;
   }
 
+  #[inline]
   pub fn get_oauth(&self) -> Arc<Mutex<OAuthMethod>> {
     self.oauth.clone()
   }
@@ -62,7 +63,18 @@ impl UserManager {
   async fn handle_new_user<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
     let json: Value = match serde_json::from_slice(&req.get_data()) {
       Ok(j) => j,
-      Err(_) => todo!(),
+      Err(e) => {
+        error!("Failed to parse request json: {}", e);
+        return Some(
+          Response::from_json(
+            400,
+            json!({
+              "error": "Failed to parse request json"
+            }),
+          )
+          .unwrap(),
+        );
+      }
     };
 
     let username: &str = json["username"].as_str()?;
@@ -104,7 +116,18 @@ impl UserManager {
   async fn handle_user_login<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
     let json: Value = match serde_json::from_slice(&req.get_data()) {
       Ok(j) => j,
-      Err(_) => todo!(),
+      Err(e) => {
+        error!("Failed to parse request json: {}", e);
+        return Some(
+          Response::from_json(
+            400,
+            json!({
+              "error": "Failed to parse request json"
+            }),
+          )
+          .unwrap(),
+        );
+      }
     };
 
     let username = json["username"].as_str()?;

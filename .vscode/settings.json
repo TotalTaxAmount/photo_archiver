@@ -2,9 +2,13 @@
   "cSpell.words": [
     "Archiver",
     "creds",
+    "dbname",
     "gapi",
     "hostaddr",
+    "LOGLEVEL",
+    "photoarchiver",
     "pkce",
+    "reqwest",
     "rsplit",
     "webrs"
   ]

@@ -47,6 +47,7 @@ impl OAuthMethod {
     }
   }
 
+  #[inline]
   pub fn get_access_code(&self) -> Option<String> {
     self.access_token.clone()
   }

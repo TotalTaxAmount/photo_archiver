@@ -1,10 +1,8 @@
 use core::fmt;
-use std::{cell::RefCell, path::Display};
 
-use jwt::{token::Signed, Claims, Header, Token};
-use serde::{de::value::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
-use crate::entities::users::{self, Model};
+use crate::entities::users;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
@@ -27,30 +25,37 @@ impl User {
     }
   }
 
+  #[inline]
   pub fn get_username(&self) -> String {
     self.model.username.clone()
   }
 
+  #[inline]
   pub fn get_password_hash(&self) -> String {
     self.model.password_hash.clone()
   }
 
+  #[inline]
   pub fn get_id(&self) -> i32 {
     self.model.id
   }
 
+  #[inline]
   pub fn get_created_at(&self) -> Option<i64> {
     self.model.created_at
   }
 
+  #[inline]
   pub fn get_gapi_token(&self) -> Option<String> {
     self.gapi_token.clone()
   }
 
+  #[inline]
   pub fn get_session_token(&self) -> Option<String> {
     self.session_token.clone()
   }
 
+  #[inline]
   pub fn set_username<S>(&mut self, new_username: S)
   where
     S: ToString,
@@ -58,6 +63,7 @@ impl User {
     self.model.username = new_username.to_string()
   }
 
+  #[inline]
   pub fn set_password_hash<S>(&mut self, new_password_hash: S)
   where
     S: ToString,
@@ -65,6 +71,7 @@ impl User {
     self.model.password_hash = new_password_hash.to_string()
   }
 
+  #[inline]
   pub fn set_gapi_token<S>(&mut self, gapi_token: S)
   where
     S: ToString,
@@ -72,6 +79,7 @@ impl User {
     self.gapi_token = Some(gapi_token.to_string())
   }
 
+  #[inline]
   pub fn set_session_token<S>(&mut self, session_token: S)
   where
     S: ToString,
@@ -82,7 +90,11 @@ impl User {
 
 impl From<users::Model> for User {
   fn from(value: users::Model) -> Self {
-    Self { model: value, gapi_token: None, session_token: None }
+    Self {
+      model: value,
+      gapi_token: None,
+      session_token: None,
+    }
   }
 }
 
@@ -107,6 +119,7 @@ impl DatabaseError {
     }
   }
 
+  #[inline]
   pub fn get_message(&self) -> String {
     self.message.clone()
   }

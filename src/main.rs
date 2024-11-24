@@ -6,8 +6,8 @@ use std::{
 };
 
 use archive_config::CONFIG;
-use archive_database::{database::PhotoArchiverDatabase, structs::User};
-use log::{error, info, trace};
+use archive_database::database::PhotoArchiverDatabase;
+use log::{error, info};
 use reqwest::Client;
 use user::user::user_manager::UserManager;
 use webrs::server::WebrsHttp;

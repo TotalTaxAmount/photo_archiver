@@ -79,7 +79,10 @@ impl Config {
       .open(&path)
     {
       Ok(f) => f,
-      Err(_) => todo!(),
+      Err(e) => {
+        error!("Failed to open config file: {}", e);
+        exit(1)
+      }
     };
 
     if set_default {

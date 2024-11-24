@@ -3,8 +3,8 @@ use std::{process::exit, sync::Arc, time::Duration};
 use archive_config::{DatabaseConfig, CONFIG};
 use log::{debug, error, info};
 use sea_orm::{
-  ActiveModelTrait, ColumnTrait, ConnectOptions, DatabaseConnection, EntityTrait, Iden,
-  IntoActiveModel, QueryFilter, Set,
+  ActiveModelTrait, ColumnTrait, ConnectOptions, DatabaseConnection, EntityTrait, IntoActiveModel,
+  QueryFilter, Set,
 };
 use serde::de::value::Error;
 use tokio::sync::Mutex;
