@@ -46,42 +46,43 @@ async fn main() -> std::io::Result<()> {
   user_manager.lock().await.init().await;
   http_server.register_method(user_manager.clone()).await;
 
-  let http_server_clone = http_server.clone();
+  // let http_server_clone = http_server.clone();
+  http_server.start().await;
 
-  tokio::spawn(async move {
-    let s = http_server.clone();
-    s.start().await
-  });
+  // tokio::spawn(async move {
+  //   let s = http_server.clone();
+  //   s.start().await
+  // });
 
-  loop {
-    println!("{:?}", user_manager.lock().await.get_active_users());
-    if let Some(t) = user_manager
-      .lock()
-      .await
-      .get_oauth()
-      .lock()
-      .await
-      .get_access_code()
-    {
-      let client = Client::new();
+  // loop {
+  //   println!("{:?}", user_manager.lock().await.get_active_users());
+  //   if let Some(t) = user_manager
+  //     .lock()
+  //     .await
+  //     .get_oauth()
+  //     .lock()
+  //     .await
+  //     .get_access_code()
+  //   {
+  //     let client = Client::new();
 
-      let res = client
-        .get("https://photoslibrary.googleapis.com/v1/mediaItems")
-        .bearer_auth(t)
-        .send()
-        .await
-        .unwrap();
+  //     let res = client
+  //       .get("https://photoslibrary.googleapis.com/v1/mediaItems")
+  //       .bearer_auth(t)
+  //       .send()
+  //       .await
+  //       .unwrap();
 
-      if res.status().is_success() {
-        let res_text = res.text().await.unwrap();
-        info!("Items: {}", res_text);
-      }
+  //     if res.status().is_success() {
+  //       let res_text = res.text().await.unwrap();
+  //       info!("Items: {}", res_text);
+  //     }
 
-      break;
-    }
-  }
+  //     break;
+  //   }
+  // }
 
-  http_server_clone.stop().await;
-  info!("Shutting down...");
+  // http_server_clone.stop().await;
+  // info!("Shutting down...");
   Ok(())
 }

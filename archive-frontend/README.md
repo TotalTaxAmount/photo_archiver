@@ -1,1 +1,1 @@
-# Svelte webui
+# Archive frontend in svelteKit

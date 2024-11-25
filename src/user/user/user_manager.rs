@@ -164,7 +164,7 @@ impl UserManager {
           Response::from_json(
             500,
             json!({
-              "error": format!("Failed to add user to database: {}", e)
+              "error": format!("User {} already exists", username)
             }),
           )
           .unwrap(),
