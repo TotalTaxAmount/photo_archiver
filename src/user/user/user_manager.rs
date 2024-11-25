@@ -11,7 +11,7 @@ use archive_config::CONFIG;
 use archive_database::{database::SharedDatabase, entities::users, structs::User};
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
-use jwt::{token::Signed, Claims, Header, SignWithKey, Token};
+use jwt::{claims, token::Signed, Claims, Header, SignWithKey, Token, VerifyWithKey};
 use log::{debug, error};
 use rand::Rng;
 use serde_json::{json, Value};
@@ -84,17 +84,14 @@ impl UserManager {
   pub fn generate_session_token(
     user: User,
   ) -> Result<Token<Header, BTreeMap<String, String>, Signed>, UserManagerError> {
-    let mut rng = rand::thread_rng();
-    let mut random_bytes = [0u8; 256];
-    rng.fill(&mut random_bytes);
-
-    let key: Hmac<Sha256> = Hmac::new_from_slice(&random_bytes).map_err(|e| {
-      error!("Failed to create new HMAC key: {}", e);
-      UserManagerError::TokenError(e.to_string())
-    })?;
+    let key: Hmac<Sha256> =
+      Hmac::new_from_slice(&CONFIG.auth.jwt_secret.as_bytes()).map_err(|e| {
+        error!("Failed to create HMAC key: {}", e);
+        UserManagerError::TokenError(e.to_string())
+      })?;
 
     let mut claims: BTreeMap<String, String> = BTreeMap::new();
-    claims.insert("username".to_string(), user.get_username().clone());
+    claims.insert("id".to_string(), user.get_id().to_string());
     claims.insert(
       "exp".to_string(),
       (chrono::Utc::now() + chrono::Duration::days(1))
@@ -120,6 +117,41 @@ impl UserManager {
       .collect::<String>()
   }
 
+  fn validate_token(&self, token_str: &str) -> Result<bool, UserManagerError> {
+    let key: Hmac<Sha256> =
+      Hmac::new_from_slice(&CONFIG.auth.jwt_secret.as_bytes()).map_err(|e| {
+        error!("Failed to create HMAC key: {}", e);
+        UserManagerError::TokenError(e.to_string())
+      })?;
+
+    let token: Token<Header, BTreeMap<String, String>, _> =
+      token_str.verify_with_key(&key).map_err(|e| {
+        error!("Failed to verify token with key: {}", e);
+        UserManagerError::TokenError(e.to_string())
+      })?;
+
+    let claims = token.claims();
+    let id = claims.get("id").and_then(|v| v.parse::<i32>().ok());
+    let exp = claims.get("exp").and_then(|v| v.parse::<i64>().ok());
+    if let (Some(id), Some(exp)) = (id, exp) {
+      if exp < chrono::Utc::now().timestamp() {
+        return Ok(false);
+      }
+      match self.get_active_users().get(&id) {
+        Some(u) if u.get_session_token() == Some(token_str.to_string()) => Ok(true),
+        None | Some(_) => {
+          error!("User is not active or token mismatch");
+          Ok(false)
+        }
+      }
+    } else {
+      error!("Invalid JWT token");
+      Err(UserManagerError::TokenError(
+        "Invalid JWT Token".to_string(),
+      ))
+    }
+  }
+
   async fn handle_new_user<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
     let json: Value = match serde_json::from_slice(&req.get_data()) {
       Ok(j) => j,
@@ -139,6 +171,31 @@ impl UserManager {
 
     let username: &str = json["username"].as_str()?;
     let password: &str = json["password"].as_str()?;
+
+    if username.len() < 3 {
+      return Some(
+        Response::from_json(
+          400,
+          json!({
+            "error": "Username is too short"
+          }),
+        )
+        .unwrap(),
+      );
+    }
+
+    if password.len() < 8 {
+      return Some(
+        Response::from_json(
+          400,
+          json!({
+            "error": "Password is too short"
+          }),
+        )
+        .unwrap(),
+      );
+    }
+
     match self
       .database
       .lock()
@@ -272,6 +329,34 @@ impl ApiMethod for UserManager {
       Some("delete") => return self.handle_delete_user(req).await,
       Some("modify") => return self.handle_modify_user(req).await,
       Some("login") => return self.handle_user_login(req).await,
+      Some("validate") => {
+        let json: Value = match serde_json::from_slice(&req.get_data()) {
+          Ok(j) => j,
+          Err(e) => {
+            error!("Failed to parse request json: {}", e);
+            return Some(Response::from_json(400, json!({ "error": "failed to parse request json" })).unwrap());
+          }
+        };
+
+        let t = match json["token"].as_str() {
+          Some(t) => t,
+          None => {
+            error!("No token in request");
+            return Some(Response::from_json(400, json!({ "error": "No token in json" })).unwrap());
+          }
+        };
+
+        match self.validate_token(t) {
+          Ok(v) => {
+            return if v {
+              Some(Response::from_json(200, json!({"success": "Token is valid"})).unwrap())
+            } else {
+              Some(Response::from_json(401, json!({"error": "Token is invalid"})).unwrap())
+            };
+          }
+          Err(e) => Some(Response::from_json(500, json!({ "error": format!("{}", e) })).unwrap()),
+        }
+      }
       Some(_) | None => {
         return Some(Response::basic(404, "Not Found"));
       }

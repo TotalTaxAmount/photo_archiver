@@ -1,28 +1,42 @@
 <script lang="ts">
   import type { Engine } from '@tsparticles/engine';
   import axios from 'axios';
-  import Cookies from 'js-cookie'
+  import Cookies from 'js-cookie';
   import { jwtDecode } from 'jwt-decode';
   import Particles, { particlesInit } from '@tsparticles/svelte';
   import { loadSlim } from '@tsparticles/slim';
 
   let username = '';
   let password = '';
+  let confirmPassword = '';
   let message = '';
+  let isRegistering = false;
 
   interface JwtPayload {
     exp: number;
-    username: string;
+    id: number;
   }
 
+  const toggleForm = () => {
+    isRegistering = !isRegistering;
+    message = '';
+    password = '';
+    confirmPassword = '';
+  };
+
   const register = async () => {
+    if (password !== confirmPassword) {
+      message = "Passwords do not match!";
+      return;
+    }
     try {
       const response = await axios.post('/api/users/new', { username, password });
       if (response.status === 200) {
         message = 'Registration successful!';
+        toggleForm();
       }
     } catch (error: any) {
-      message = `Error: ${error.response?.data?.error || 'Registration failed'}`;
+      message = `${error.response?.data?.error || 'Registration failed'}`;
     }
   };
 
@@ -37,16 +51,17 @@
 
         Cookies.set('session-token', token, {
           expires: exp,
-        })
+        });
+        message = 'Login successful!';
       }
     } catch (error: any) {
-      message = `Error: ${error.response?.data?.error || 'Login failed'}`;
+      message = `${error.response?.data?.error || 'Login failed'}`;
     }
   };
 
   const particleOptions = {
     particles: {
-      color: { value: '#fff', },
+      color: { value: '#fff' },
       number: { value: 120 },
       size: { value: 3 },
       move: {
@@ -56,11 +71,11 @@
       links: {
         enable: true,
         color: '#fff',
-        distance: 200
+        distance: 200,
       },
-      shape: { type: 'circle' }
-    }
-  }
+      shape: { type: 'circle' },
+    },
+  };
 
   void particlesInit(async (engine: Engine) => {
     await loadSlim(engine);
@@ -68,14 +83,6 @@
 </script>
 
 <style>
-  html, body {
-    height: 100%;
-    margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
   .particles-container {
     position: fixed;
     top: 0;
@@ -108,34 +115,45 @@
     border: 1px solid #ddd;
     border-radius: 5px;
   }
+
   button {
     padding: 0.5rem;
     margin: 0.5rem;
     border: none;
     border-radius: 5px;
     background: #007bff;
-    color: white;
+    color: var(--foreground-color);
     cursor: pointer;
   }
+
   button:hover {
     background: #0056b3;
   }
+
   .message {
     margin-top: 1rem;
     color: #d9534f;
+    text-align: center;
+  }
+
+  .toggle-link {
+    margin-top: 1rem;
+    color: #007bff;
+    cursor: pointer;
+    text-align: center;
+  }
+  .toggle-link:hover {
+    text-decoration: underline;
   }
 </style>
 
 <div class="particles-container">
-  <Particles
-    id = "particles"
-    class = ""
-    options = "{particleOptions}"
-  />
+  <Particles id="particles" class="" options="{particleOptions}" />
 </div>
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="login-container">
-  <h1>Photo Archiver login</h1>
+  <h1>Photo Archiver</h1>
   <input
     type="text"
     placeholder="Username"
@@ -148,7 +166,20 @@
     bind:value={password}
     required
   />
-  <button on:click={register}>Register</button>
-  <button on:click={login}>Login</button>
+  {#if isRegistering}
+    <input
+      type="password"
+      placeholder="Confirm Password"
+      bind:value={confirmPassword}
+      required
+    />
+    <button on:click={register}>Register</button>
+  {:else}
+    <button on:click={login}>Login</button>
+  {/if}
+  <!-- svelte-ignore a11y_missing_attribute -->
+  <a class="toggle-link" role="button" tabindex=0 on:click={toggleForm} >
+    {isRegistering ? 'Already have an account? Login' : 'Don\'t have an account? Register'}
+  </a>
   <div class="message">{message}</div>
 </div>

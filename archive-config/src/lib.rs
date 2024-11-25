@@ -23,7 +23,7 @@ pub struct Compression {
   pub gzip: bool,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct DatabaseConfig {
   pub ip: Ipv4Addr,
   pub port: u16,
@@ -34,9 +34,15 @@ pub struct DatabaseConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct AuthConfig {
+  pub jwt_secret: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
   pub server: ServerConfig,
   pub database: DatabaseConfig,
+  pub auth: AuthConfig,
 }
 
 impl Default for Config {
@@ -59,6 +65,9 @@ impl Default for Config {
         username: "username".to_string(),
         password: "password".to_string(),
         dbname: "photoarchiver".to_string(),
+      },
+      auth: AuthConfig {
+        jwt_secret: "changeme".to_string(),
       },
     }
   }

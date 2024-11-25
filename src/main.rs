@@ -47,7 +47,7 @@ async fn main() -> std::io::Result<()> {
   http_server.register_method(user_manager.clone()).await;
 
   // let http_server_clone = http_server.clone();
-  http_server.start().await;
+  let _ = http_server.start().await;
 
   // tokio::spawn(async move {
   //   let s = http_server.clone();
