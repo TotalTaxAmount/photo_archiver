@@ -5,6 +5,8 @@
   import { jwtDecode } from 'jwt-decode';
   import Particles, { particlesInit } from '@tsparticles/svelte';
   import { loadSlim } from '@tsparticles/slim';
+  import { writable } from 'svelte/store';
+  import { onMount } from 'svelte';
 
   let username = '';
   let password = '';
@@ -52,17 +54,20 @@
         Cookies.set('session-token', token, {
           expires: exp,
         });
-        message = 'Login successful!';
+        window.location.href = "/";
       }
     } catch (error: any) {
       message = `${error.response?.data?.error || 'Login failed'}`;
     }
   };
 
-  const particleOptions = {
+  let particleOptions = {
     particles: {
+      // background: {
+      //   color: { value: '#fff' }
+      // },
       color: { value: '#fff' },
-      number: { value: 120 },
+      number: { value: 100 },
       size: { value: 3 },
       move: {
         enable: true,
@@ -77,6 +82,27 @@
     },
   };
 
+  let width = writable(0);
+  let height = writable(0);
+
+  $: {
+    const particleDensity = 0.000047;
+    const totalParticles = Math.round($width * $height * particleDensity);
+
+    particleOptions.particles.number.value = totalParticles;
+  }
+
+  onMount(() => {
+    const updateDimensions = () => {
+      width.set(window.innerWidth);
+      height.set(window.innerHeight);
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  })
+
   void particlesInit(async (engine: Engine) => {
     await loadSlim(engine);
   });
@@ -84,6 +110,7 @@
 
 <style>
   .particles-container {
+    background-color: var(--background-color);
     position: fixed;
     top: 0;
     left: 0;
@@ -101,7 +128,7 @@
     padding: 1rem;
     border: 1px solid #ddd;
     border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.4);
   }
 
   h1 {

@@ -1,3 +1,12 @@
+<script lang="ts">
+  import { validateToken } from "$lib/stores/auth";
+  import { onMount } from "svelte";
+
+  onMount(async () => {
+    await validateToken();
+  });
+</script>
+
 <div class="main-content">
   <slot></slot>
 </div>
