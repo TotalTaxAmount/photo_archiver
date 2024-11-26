@@ -4,8 +4,8 @@
   import { onMount } from "svelte";
 
   onMount(async () => {
-    let token;
-    authToken.subscribe(value => token = value);
+    let token: string | undefined;
+    authToken.subscribe((value: string) => token = value);
 
     if (!token || !(await validateToken(token))) {
       authToken.set(null);

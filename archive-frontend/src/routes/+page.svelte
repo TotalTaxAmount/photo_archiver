@@ -1,1 +1,5 @@
-<h1>Logged in homepage</h1>
+<script>
+  import GoogleLogin from "$lib/GoogleLogin.svelte";
+
+</script>
+<GoogleLogin />
