@@ -1,1 +1,1 @@
-<p>Hi</p>
+<h1>Logged in homepage</h1>

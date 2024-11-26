@@ -1,9 +1,16 @@
 <script lang="ts">
-  import { validateToken } from "$lib/stores/auth";
+  import { goto } from "$app/navigation";
+  import { authToken, validateToken } from "$lib/stores/auth";
   import { onMount } from "svelte";
 
   onMount(async () => {
-    await validateToken();
+    let token;
+    authToken.subscribe(value => token = value);
+
+    if (!token || !(await validateToken(token))) {
+      authToken.set(null);
+      goto('/login');
+    }
   });
 </script>
 

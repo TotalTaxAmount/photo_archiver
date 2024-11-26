@@ -1,29 +1,24 @@
 import { writable } from "svelte/store";
 import axios from "axios";
-import Cookies from "js-cookie";
-import { navigate } from "svelte-routing";
+import { createCookieStorage, persist, type PersistentStore } from "@macfja/svelte-persistent-store";
 
-export const isAuthenticated = writable(false);
+let tokenStorage; // You can customize options here
+if (typeof window !== 'undefined') {
+  tokenStorage = createCookieStorage();
+}
+export const authToken = tokenStorage ?  persist(writable(null), tokenStorage, 'session-token') : writable(null);
 
-export const validateToken = async () => {
-  const token = Cookies.get("session-token");
-  if (!token) {
-    console.log("no token")
-    isAuthenticated.set(false);
-    navigate('/login');
-  }
 
+export const validateToken = async (token: string) : Promise<boolean> => {
   try {
-    const res = await axios.post("http://localhost:5173/api/users/validate", { token: token });
-    if (res.status === 200) {
-      isAuthenticated.set(true)
-    } else {
-      Cookies.remove("session-token")
-      navigate('/login');
+    const res = await axios.post('/api/users/validate', { token });
+    if (res.status !== 200) {
+      return false
     }
+
+    return true;
   } catch (e: any) {
-    isAuthenticated.set(false);
-    console.error(e);
-    navigate('/login');
-  } 
+    console.error("Error validating token: ", e);
+    return false;
+  }
 }

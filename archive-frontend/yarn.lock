@@ -157,6 +157,22 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@macfja/serializer@^1.1.2":
+  version "1.1.3"
+  resolved "https://registry.yarnpkg.com/@macfja/serializer/-/serializer-1.1.3.tgz#539b8810c85289b4b58668ab88ac400589ab7b9d"
+  integrity sha512-Jf/uoqXO1k+ZFxA25o35WhV9QyxOo/fMFAwsRnnvXM7YSk7wPNaDVsEwoAWy0LUgan3k+RapJDOpbWSqHz/9Bg==
+
+"@macfja/svelte-persistent-store@^2.4.2":
+  version "2.4.2"
+  resolved "https://registry.yarnpkg.com/@macfja/svelte-persistent-store/-/svelte-persistent-store-2.4.2.tgz#da466017d2d7dbeff68f3f85d10c3153267f0fd0"
+  integrity sha512-ZAcWJcCnfZDIiy77Aoj9KQ6qDt6UmRZgUM3UHjmOY1IRf0SirDl1WgBFlVUMynRLERy4/EgZtWPqAMnh3cbCRA==
+  dependencies:
+    "@macfja/serializer" "^1.1.2"
+    browser-cookies "^1.2.0"
+    idb-keyval "^5.1.3 || ^6.2.1"
+    sjcl-codec-hex "^1.0.0"
+    sjcl-es "^2.0.0"
+
 "@polka/url@^1.0.0-next.24":
   version "1.0.0-next.28"
   resolved "https://registry.yarnpkg.com/@polka/url/-/url-1.0.0-next.28.tgz#d45e01c4a56f143ee69c54dd6b12eade9e270a73"
@@ -641,6 +657,11 @@ axobject-query@^4.1.0:
   resolved "https://registry.yarnpkg.com/axobject-query/-/axobject-query-4.1.0.tgz#28768c76d0e3cff21bc62a9e2d0b6ac30042a1ee"
   integrity sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==
 
+browser-cookies@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/browser-cookies/-/browser-cookies-1.2.0.tgz#fca3ffb9b6a63aadc4d8c0999c6b57d0fa7d29b5"
+  integrity sha512-cg2WuoOJo+F+g2XjEaP8nmeRp1vDHjt7sqpKJMsTNXKrpyIBNVslYJeehvs6FEddj8usV2+qyRSBEX244yN5/g==
+
 chokidar@^4.0.1:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-4.0.1.tgz#4a6dff66798fb0f72a94f616abbd7e1a19f31d41"
@@ -758,6 +779,11 @@ globrex@^0.1.2:
   resolved "https://registry.yarnpkg.com/globrex/-/globrex-0.1.2.tgz#dd5d9ec826232730cd6793a5e33a9302985e6098"
   integrity sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==
 
+"idb-keyval@^5.1.3 || ^6.2.1":
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/idb-keyval/-/idb-keyval-6.2.1.tgz#94516d625346d16f56f3b33855da11bfded2db33"
+  integrity sha512-8Sb3veuYCyrZL+VBt9LJfZjLUPWVvqn8tG28VqYNFCo43KHcKuq+b4EiXGeuaLAQWL2YmyDgMp2aSpH9JHsEQg==
+
 import-meta-resolve@^4.1.0:
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/import-meta-resolve/-/import-meta-resolve-4.1.0.tgz#f9db8bead9fafa61adb811db77a2bf22c5399706"
@@ -769,11 +795,6 @@ is-reference@^3.0.3:
   integrity sha512-ixkJoqQvAP88E6wLydLGGqCJsrFUnqoH6HnaczB8XmDH1oaWU+xxdptvikTgaEhtZ53Ky6YXiBuUI2WXLMCwjw==
   dependencies:
     "@types/estree" "^1.0.6"
-
-js-cookie@^3.0.5:
-  version "3.0.5"
-  resolved "https://registry.yarnpkg.com/js-cookie/-/js-cookie-3.0.5.tgz#0b7e2fd0c01552c58ba86e0841f94dc2557dcdbc"
-  integrity sha512-cEiJEAEoIbWfCZYKWhVwFuvPX1gETRYPw6LlaTKoxD3s2AkXzkCjnp6h0V77ozyqj0jakteJ4YqDJT830+lVGw==
 
 jwt-decode@^4.0.0:
   version "4.0.0"
@@ -900,6 +921,23 @@ sirv@^3.0.0:
     "@polka/url" "^1.0.0-next.24"
     mrmime "^2.0.0"
     totalist "^3.0.0"
+
+sjcl-bit-array@~1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/sjcl-bit-array/-/sjcl-bit-array-1.0.0.tgz#0ad772b7be6c02bda6ccf36abc764f7a0eafb0f4"
+  integrity sha512-xoR134YJa7AHToLqCWuLYGpAdcBuLbSgwXe9c5HTIN4vr5TILXO/jVF8pLeXDhC7JTOvpmXUkiOupawVNTZVdQ==
+
+sjcl-codec-hex@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/sjcl-codec-hex/-/sjcl-codec-hex-1.0.0.tgz#a710dfbaad9483b1b0c60aac5c4bace22ec0f25d"
+  integrity sha512-lBBjqky1BEH+WZdABR/iSl2Pu3HO8n8r2D7nkzYLZfcR9ke4kUGMvO0ztRkla5oi4Esbc9pOlBtyGeMjYOU0ng==
+  dependencies:
+    sjcl-bit-array "~1.0.0"
+
+sjcl-es@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/sjcl-es/-/sjcl-es-2.0.0.tgz#23030ca2eda9e324bbaf27f6b86221d37431144d"
+  integrity sha512-P8O+4pAt95XqmTlvvPdbmBggjAgSE0LQnhSEYUKYKepN176b/8K9zcVrrqhuLu5EUQyeCYy/56J9FzxvzvMavg==
 
 source-map-js@^1.2.1:
   version "1.2.1"

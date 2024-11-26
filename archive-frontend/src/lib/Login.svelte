@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { Engine } from '@tsparticles/engine';
   import axios from 'axios';
-  import Cookies from 'js-cookie';
   import { jwtDecode } from 'jwt-decode';
   import Particles, { particlesInit } from '@tsparticles/svelte';
   import { loadSlim } from '@tsparticles/slim';
   import { writable } from 'svelte/store';
   import { onMount } from 'svelte';
+  import { authToken, validateToken } from './stores/auth';
+  import { goto } from '$app/navigation';
 
   let username = '';
   let password = '';
@@ -49,12 +50,9 @@
         const token = response.data.token;
 
         const decoded: JwtPayload = jwtDecode(token);
-        const exp = new Date(decoded.exp * 1000);
 
-        Cookies.set('session-token', token, {
-          expires: exp,
-        });
-        window.location.href = "/";
+        authToken.set(token);
+        goto('/')
       }
     } catch (error: any) {
       message = `${error.response?.data?.error || 'Login failed'}`;
@@ -101,6 +99,16 @@
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
+  })
+
+  onMount(async () => {
+    let token;
+    authToken.subscribe(v => token = v);
+
+    if (token && await validateToken(token)) {
+      console.log("vaild token: " + token)
+      goto('/');
+    }
   })
 
   void particlesInit(async (engine: Engine) => {
