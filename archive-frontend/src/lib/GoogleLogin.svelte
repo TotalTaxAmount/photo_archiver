@@ -1,8 +1,13 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import googleIcon from '$lib/assets/google.svg'
+  import axios from 'axios';
 
   const login = async () => {
-    console.log("hi")
+    let oauthUrl = await axios.get('/api/oauth/new');
+    if (oauthUrl.status === 200) {
+      window.location = oauthUrl.data.oauth_url;
+    }
   }
 </script>
 

@@ -1,6 +1,5 @@
 use std::{
-  str::FromStr,
-  sync::{Arc, Mutex},
+  hash::RandomState, str::FromStr, sync::{Arc, Mutex}
 };
 
 use archive_config::CONFIG;
@@ -11,6 +10,7 @@ use oauth2::{
   ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
   TokenUrl,
 };
+use rand::{distributions::Alphanumeric, Rng};
 use serde_json::json;
 use webrs::{api::ApiMethod, request::Request, response::Response};
 
@@ -52,24 +52,33 @@ impl OAuthMethod {
     self.access_token.clone()
   }
 
-  pub fn generate_auth_url(&self) -> (String, PkceCodeVerifier) {
+  pub fn generate_auth_url(&self) -> (String, PkceCodeVerifier, String) {
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+    let state: String = rand::thread_rng()
+      .sample_iter(&Alphanumeric)
+      .take(32)
+      .map(char::from)
+      .collect();
+
+    let csrf_token = CsrfToken::new(state.clone());
 
     let auth_url = self
       .oauth_client
-      .authorize_url(CsrfToken::new_random)
+      .authorize_url(|| csrf_token)
       .add_scope(Scope::new(
         "https://www.googleapis.com/auth/photoslibrary.readonly".to_string(),
       ))
       .set_pkce_challenge(pkce_challenge)
       .url();
 
-    (auth_url.0.to_string(), pkce_verifier)
+    (auth_url.0.to_string(), pkce_verifier, state)
   }
 
   async fn handle_callback<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
     let query = req.get_url_params();
     let code = query.get("code")?.to_string();
+
+    info!("{:?}", req);
 
     let auth_code = AuthorizationCode::new(code);
 
@@ -96,20 +105,6 @@ impl OAuthMethod {
 
     Some(res)
   }
-
-  async fn handle_new_url<'s, 'r>(&'s mut self) -> Option<Response<'r>> {
-    let (url, pkce_code) = self.generate_auth_url();
-    *self.pkce_verifier.lock().unwrap() = Some(pkce_code);
-    Some(
-      Response::from_json(
-        200,
-        json!({
-          "oauth_url": url,
-        }),
-      )
-      .unwrap(),
-    )
-  }
 }
 
 #[async_trait]
@@ -124,7 +119,6 @@ impl ApiMethod for OAuthMethod {
   {
     match req.get_endpoint().rsplit("/").next() {
       Some("callback") => return self.handle_callback(req).await,
-      Some("new") => return self.handle_new_url().await,
       Some(_) | None => return Some(Response::basic(400, "Bad Request")),
     }
   }
