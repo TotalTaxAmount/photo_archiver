@@ -11,24 +11,27 @@ pub struct User {
   gapi_token: Option<String>,
   session_token: Option<String>,
   #[serde(skip)]
-  oauth: Option<(PkceCodeVerifier, String)>
+  oauth: Option<(PkceCodeVerifier, String)>,
 }
 
 impl Clone for User {
-    fn clone(&self) -> Self {
-        Self { model: self.model.clone(), gapi_token: self.gapi_token.clone(), session_token: self.session_token.clone(), oauth: None }
+  fn clone(&self) -> Self {
+    Self {
+      model: self.model.clone(),
+      gapi_token: self.gapi_token.clone(),
+      session_token: self.session_token.clone(),
+      oauth: None,
     }
+  }
 }
 
 impl PartialEq for User {
-    fn eq(&self, other: &Self) -> bool {
-        self.model == other.model && self.gapi_token == other.gapi_token && self.session_token == other.session_token
-    }
+  fn eq(&self, other: &Self) -> bool {
+    self.model == other.model && self.gapi_token == other.gapi_token && self.session_token == other.session_token
+  }
 }
 
 impl Eq for User {}
-
-
 
 impl User {
   pub fn new<S: ToString>(username: S, password_hash: S) -> Self {

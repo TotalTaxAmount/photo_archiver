@@ -50,7 +50,7 @@ impl std::error::Error for UserManagerError {
 impl UserManagerError {
   pub fn get_message(&self) -> String {
     match self {
-      Self::AuthenticationError(m) | Self::TokenError(m) => m.clone()
+      Self::AuthenticationError(m) | Self::TokenError(m) => m.clone(),
     }
   }
 }
@@ -145,15 +145,18 @@ impl UserManager {
   }
 
   async fn validate_request<'s, 'r>(&'s self, req: Request<'r>) -> Result<i32, UserManagerError> {
-    trace!("headers: {:?}", req.get_headers());
-    let token = req
-      .get_headers()
+    let headers = req.get_headers();
+    trace!("Headers: {:?}", headers);
+    let auth_header = headers
       .get("authorization")
-      .ok_or(UserManagerError::AuthenticationError("No 'authorization' header".to_owned()))?
-      .split_at(7)
-      .1;
+      .ok_or(UserManagerError::AuthenticationError("No 'authorization' header".to_owned()))?;
 
-    let (valid, id) = self.validate_token(token)?;
+    trace!("Auth header: {}", auth_header);
+    if !auth_header.starts_with("Bearer ") {
+      return Err(UserManagerError::AuthenticationError("Invalid header format".to_owned()));
+    }
+
+    let (valid, id) = self.validate_token(&auth_header[7..])?;
     if !valid {
       return Err(UserManagerError::AuthenticationError("Invalid token".to_owned()));
     }
@@ -299,7 +302,7 @@ impl UserManager {
         return Some(Response::from_json(200, json!({ "success": "Token is valid"})).unwrap());
       }
       Err(e) => {
-        return Some(Response::from_json(401, json!({ "error": format!("{}", e) })).unwrap());
+        return Some(Response::from_json(401, json!({ "error": e.get_message() })).unwrap());
       }
     }
   }
@@ -346,7 +349,7 @@ impl ApiMethod for UserManager {
   {
     match req.get_endpoint().rsplit("users/").next() {
       Some("oauth/url") => self.handle_new_oauth_url(req).await,
-      Some(_) | None => Some(Response::basic(404, "Not Found"))
+      Some(_) | None => Some(Response::basic(404, "Not Found")),
     }
   }
 
