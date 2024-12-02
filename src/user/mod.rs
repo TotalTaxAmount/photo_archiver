@@ -1,2 +1,2 @@
-pub mod oauth;
+mod oauth;
 pub mod user_manager;

@@ -16,11 +16,12 @@ async fn main() -> std::io::Result<()> {
   if var("LOGLEVEL").is_err() {
     set_var("LOGLEVEL", "info");
   }
-  pretty_env_logger::formatted_timed_builder().parse_env("LOGLEVEL").format_timestamp_millis().init();
 
   if var("CONFIG_PATH").is_err() {
     set_var("CONFIG_PATH", "archive_config.toml");
   }
+
+  pretty_env_logger::formatted_timed_builder().parse_env("LOGLEVEL").format_timestamp_millis().init();
 
   let http_server = WebrsHttp::new(
     CONFIG.server.port,
@@ -40,41 +41,5 @@ async fn main() -> std::io::Result<()> {
 
   // let http_server_clone = http_server.clone();
   let _ = http_server.start().await;
-
-  // tokio::spawn(async move {
-  //   let s = http_server.clone();
-  //   s.start().await
-  // });
-
-  // loop {
-  //   println!("{:?}", user_manager.lock().await.get_active_users());
-  //   if let Some(t) = user_manager
-  //     .lock()
-  //     .await
-  //     .get_oauth()
-  //     .lock()
-  //     .await
-  //     .get_access_code()
-  //   {
-  //     let client = Client::new();
-
-  //     let res = client
-  //       .get("https://photoslibrary.googleapis.com/v1/mediaItems")
-  //       .bearer_auth(t)
-  //       .send()
-  //       .await
-  //       .unwrap();
-
-  //     if res.status().is_success() {
-  //       let res_text = res.text().await.unwrap();
-  //       info!("Items: {}", res_text);
-  //     }
-
-  //     break;
-  //   }
-  // }
-
-  // http_server_clone.stop().await;
-  // info!("Shutting down...");
   Ok(())
 }

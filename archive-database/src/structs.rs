@@ -5,33 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::entities::users;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct User {
   model: users::Model,
   gapi_token: Option<String>,
   session_token: Option<String>,
-  #[serde(skip)]
-  oauth: Option<(PkceCodeVerifier, String)>,
 }
-
-impl Clone for User {
-  fn clone(&self) -> Self {
-    Self {
-      model: self.model.clone(),
-      gapi_token: self.gapi_token.clone(),
-      session_token: self.session_token.clone(),
-      oauth: None,
-    }
-  }
-}
-
-impl PartialEq for User {
-  fn eq(&self, other: &Self) -> bool {
-    self.model == other.model && self.gapi_token == other.gapi_token && self.session_token == other.session_token
-  }
-}
-
-impl Eq for User {}
 
 impl User {
   pub fn new<S: ToString>(username: S, password_hash: S) -> Self {
@@ -44,7 +23,6 @@ impl User {
       },
       gapi_token: None,
       session_token: None,
-      oauth: None,
     }
   }
 
@@ -97,16 +75,11 @@ impl User {
   pub fn set_session_token<S: ToString>(&mut self, session_token: S) {
     self.session_token = Some(session_token.to_string())
   }
-
-  #[inline]
-  pub fn set_oauth<S: ToString>(&mut self, verifier: PkceCodeVerifier, state: S) {
-    self.oauth = Some((verifier, state.to_string()))
-  }
 }
 
 impl From<users::Model> for User {
   fn from(value: users::Model) -> Self {
-    Self { model: value, gapi_token: None, session_token: None, oauth: None }
+    Self { model: value, gapi_token: None, session_token: None }
   }
 }
 

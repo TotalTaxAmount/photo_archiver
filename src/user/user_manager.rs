@@ -1,25 +1,21 @@
 use core::fmt;
 use std::{
-  borrow::BorrowMut,
-  collections::{BTreeMap, HashMap},
-  fmt::write,
-  process::exit,
-  sync::Arc,
+  borrow::BorrowMut, collections::{BTreeMap, HashMap}, error::Error, process::exit, sync::Arc
 };
 
 use archive_config::CONFIG;
 use archive_database::{database::SharedDatabase, entities::users, structs::User};
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
-use jwt::{claims, token::Signed, Claims, Header, SignWithKey, Token, VerifyWithKey};
+use jwt::{token::Signed, Header, SignWithKey, Token, VerifyWithKey};
 use log::{debug, error, trace};
-use rand::Rng;
+use oauth2::http::uri;
 use serde_json::{json, Value};
-use sha2::{digest::InvalidLength, Digest, Sha256};
+use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
 
-use crate::user::oauth::{oauth_api::OAuthMethod, OAuthParameters};
+use super::oauth::{OAuthFlow, OAuthParameters};
 
 pub type SharedUserManager = Arc<Mutex<UserManager>>;
 
@@ -39,7 +35,7 @@ impl fmt::Display for UserManagerError {
   }
 }
 
-impl std::error::Error for UserManagerError {
+impl Error for UserManagerError {
   fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
     match self {
       Self::TokenError(_) | Self::AuthenticationError(_) => None,
@@ -59,28 +55,16 @@ impl UserManagerError {
 pub struct UserManager {
   database: SharedDatabase,
   http_server: Arc<WebrsHttp>,
-  oauth: Arc<Mutex<OAuthMethod>>,
   active_users: HashMap<i32, User>,
+  oauth_flows: HashMap<String, (i32, OAuthFlow)>,
 }
 
 impl UserManager {
   pub fn new(http_server: Arc<WebrsHttp>, database: SharedDatabase) -> SharedUserManager {
-    Arc::new(Mutex::new(Self {
-      http_server,
-      database,
-      oauth: Arc::new(Mutex::new(OAuthMethod::new(
-        OAuthParameters::parse(&CONFIG.server.client_secret_path).unwrap_or_else(|e| {
-          error!("Failed to parse client secret: {} Exiting...", e);
-          exit(1)
-        }),
-      ))),
-      active_users: HashMap::new(),
-    }))
+    Arc::new(Mutex::new(Self { http_server, database, active_users: HashMap::new(), oauth_flows: HashMap::new() }))
   }
 
-  pub async fn init(&self) {
-    // self.http_server.register_method(self.oauth.clone()).await;
-  }
+  pub async fn init(&self) {}
 
   #[inline]
   pub fn get_active_users(&self) -> &HashMap<i32, User> {
@@ -144,7 +128,7 @@ impl UserManager {
     }
   }
 
-  async fn validate_request<'s, 'r>(&'s self, req: Request<'r>) -> Result<i32, UserManagerError> {
+  async fn validate_request<'s, 'r>(&'s self, req: &Request<'r>) -> Result<i32, UserManagerError> {
     let headers = req.get_headers();
     trace!("Headers: {:?}", headers);
     let auth_header = headers
@@ -297,7 +281,7 @@ impl UserManager {
   }
 
   async fn handle_verify_token<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
-    match self.validate_request(req).await {
+    match self.validate_request(&req).await {
       Ok(_) => {
         return Some(Response::from_json(200, json!({ "success": "Token is valid"})).unwrap());
       }
@@ -317,23 +301,63 @@ impl UserManager {
   }
 
   async fn handle_new_oauth_url<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
-    let id = match self.validate_request(req).await {
+    let id = match self.validate_request(&req).await {
       Ok(id) => id,
       Err(e) => {
         return Some(Response::from_json(401, json!({ "error": format!("{}", e.get_message()) })).unwrap());
       }
     };
 
-    let (url, pkce_verifier, state) = self.oauth.lock().await.generate_auth_url();
-
-    match self.active_users.get_mut(&id) {
-      Some(u) => u.set_oauth(pkce_verifier, state),
-      None => {
-        return Some(Response::from_json(401, json!({ "error": "User is not logged in or does not exist"})).unwrap());
-      }
+    let mut flow = match OAuthFlow::new(id) {
+      Ok(f) => f,
+      Err(e) =>
+        return Some(
+          Response::from_json(401, json!({ "error": format!("Failed to create new oauth flow: {}", e.to_string()) }))
+            .unwrap(),
+        ),
     };
 
+    let (url, state) = flow.generate_auth_url();
+
+    if self.active_users.get(&id) == None {
+      return Some(Response::from_json(401, json!({ "error": "User is not logged in or does not exist"})).unwrap());
+    }
+
+    trace!("New OAuth flow added, state = {}, id = {}", state, id);
+    self.oauth_flows.insert(state, (id, flow));
     return Some(Response::from_json(200, json!({ "oauth_url": url })).unwrap());
+  }
+
+  async fn handle_oauth_callback<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
+    let params = req.get_url_params();
+    let state = if let Some(s) = params.get("state") { s } else { return Some(Response::from_json(400, json!({ "error": "No state param" })).unwrap()); };
+    let code = if let Some(s) = params.get("code") { s } else { return Some(Response::from_json(400, json!({ "error": "No code param" })).unwrap()); };
+
+    let (id, flow) = if let Some(f) = self.oauth_flows.get_mut(*state) { f } else { return Some(Response::from_json(401, json!({ "error": "No flow for state" })).unwrap()); };
+    
+    let mut u: &mut User = self.active_users.get_mut(&id).unwrap(); // Should always be active here
+
+    if flow.get_user_id() != *id {
+      return Some(Response::from_json(401, json!({ "error": "Invalid id" })).unwrap());
+    }
+
+    let mut res: Option<Response> = None;
+    match flow.process(code.to_string()).await {
+        Ok(t) => u.set_gapi_token(t),
+        Err(e) => {
+          res = Some(Response::from_json(501, json!({ "error": e.to_string() })).unwrap());
+        },
+    };
+
+    self.oauth_flows.remove(*state);
+    if res.is_none() {
+      let mut temp = Response::basic(301, "Found");
+      temp.add_header("location".to_string(), "/");
+      res = Some(temp);
+    }
+
+    res
+
   }
 }
 
@@ -349,7 +373,8 @@ impl ApiMethod for UserManager {
   {
     match req.get_endpoint().rsplit("users/").next() {
       Some("oauth/url") => self.handle_new_oauth_url(req).await,
-      Some(_) | None => Some(Response::basic(404, "Not Found")),
+      Some("oauth/callback") => self.handle_oauth_callback(req).await,
+      _ => Some(Response::basic(404, "Not Found")),
     }
   }
 
@@ -363,7 +388,7 @@ impl ApiMethod for UserManager {
       Some("modify") => self.handle_modify_user(req).await,
       Some("login") => self.handle_user_login(req).await,
       Some("validate") => self.handle_verify_token(req).await,
-      Some(_) | None => Some(Response::basic(404, "Not Found")),
+      _ => Some(Response::basic(404, "Not Found")),
     }
   }
 }
