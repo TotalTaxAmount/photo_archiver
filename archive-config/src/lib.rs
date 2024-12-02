@@ -52,11 +52,7 @@ impl Default for Config {
         port: 8080,
         content_dir: "html".to_string(),
         client_secret_path: "secret.json".to_string(),
-        compression: Compression {
-          zstd: true,
-          br: true,
-          gzip: true,
-        },
+        compression: Compression { zstd: true, br: true, gzip: true },
       },
       database: DatabaseConfig {
         ip: Ipv4Addr::new(127, 0, 0, 1),
@@ -66,9 +62,7 @@ impl Default for Config {
         password: "password".to_string(),
         dbname: "photoarchiver".to_string(),
       },
-      auth: AuthConfig {
-        jwt_secret: "changeme".to_string(),
-      },
+      auth: AuthConfig { jwt_secret: "changeme".to_string() },
     }
   }
 }
@@ -80,13 +74,7 @@ impl Config {
   {
     let set_default = !Path::new(&path.to_string()).exists();
 
-    let mut config_file = match File::options()
-      .create(true)
-      .write(true)
-      .read(true)
-      .append(true)
-      .open(&path)
-    {
+    let mut config_file = match File::options().create(true).write(true).read(true).append(true).open(&path) {
       Ok(f) => f,
       Err(e) => {
         error!("Failed to open config file: {}", e);
@@ -97,10 +85,7 @@ impl Config {
     if set_default {
       let toml_string = toml::to_string(&Config::default()).unwrap();
       config_file.write_all(toml_string.as_bytes()).unwrap();
-      error!(
-        "No config file! Creating and saving default to {}",
-        path.to_string()
-      );
+      error!("No config file! Creating and saving default to {}", path.to_string());
       exit(1);
     }
 

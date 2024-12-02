@@ -8,8 +8,7 @@ use std::{
 use archive_config::CONFIG;
 use archive_database::database::PhotoArchiverDatabase;
 use log::{error, info};
-use reqwest::Client;
-use user::user::user_manager::UserManager;
+use user::user_manager::UserManager;
 use webrs::server::WebrsHttp;
 
 #[tokio::main]
@@ -17,10 +16,7 @@ async fn main() -> std::io::Result<()> {
   if var("LOGLEVEL").is_err() {
     set_var("LOGLEVEL", "info");
   }
-  pretty_env_logger::formatted_timed_builder()
-    .parse_env("LOGLEVEL")
-    .format_timestamp_millis()
-    .init();
+  pretty_env_logger::formatted_timed_builder().parse_env("LOGLEVEL").format_timestamp_millis().init();
 
   if var("CONFIG_PATH").is_err() {
     set_var("CONFIG_PATH", "archive_config.toml");
@@ -28,11 +24,7 @@ async fn main() -> std::io::Result<()> {
 
   let http_server = WebrsHttp::new(
     CONFIG.server.port,
-    (
-      CONFIG.server.compression.zstd,
-      CONFIG.server.compression.br,
-      CONFIG.server.compression.gzip,
-    ),
+    (CONFIG.server.compression.zstd, CONFIG.server.compression.br, CONFIG.server.compression.gzip),
     CONFIG.server.content_dir.clone(),
   );
 

@@ -1,15 +1,34 @@
 use core::fmt;
 
+use oauth2::PkceCodeVerifier;
 use serde::{Deserialize, Serialize};
 
 use crate::entities::users;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct User {
   model: users::Model,
   gapi_token: Option<String>,
   session_token: Option<String>,
+  #[serde(skip)]
+  oauth: Option<(PkceCodeVerifier, String)>
 }
+
+impl Clone for User {
+    fn clone(&self) -> Self {
+        Self { model: self.model.clone(), gapi_token: self.gapi_token.clone(), session_token: self.session_token.clone(), oauth: None }
+    }
+}
+
+impl PartialEq for User {
+    fn eq(&self, other: &Self) -> bool {
+        self.model == other.model && self.gapi_token == other.gapi_token && self.session_token == other.session_token
+    }
+}
+
+impl Eq for User {}
+
+
 
 impl User {
   pub fn new<S: ToString>(username: S, password_hash: S) -> Self {
@@ -22,6 +41,7 @@ impl User {
       },
       gapi_token: None,
       session_token: None,
+      oauth: None,
     }
   }
 
@@ -56,45 +76,34 @@ impl User {
   }
 
   #[inline]
-  pub fn set_username<S>(&mut self, new_username: S)
-  where
-    S: ToString,
-  {
+  pub fn set_username<S: ToString>(&mut self, new_username: S) {
     self.model.username = new_username.to_string()
   }
 
   #[inline]
-  pub fn set_password_hash<S>(&mut self, new_password_hash: S)
-  where
-    S: ToString,
-  {
+  pub fn set_password_hash<S: ToString>(&mut self, new_password_hash: S) {
     self.model.password_hash = new_password_hash.to_string()
   }
 
   #[inline]
-  pub fn set_gapi_token<S>(&mut self, gapi_token: S)
-  where
-    S: ToString,
-  {
+  pub fn set_gapi_token<S: ToString>(&mut self, gapi_token: S) {
     self.gapi_token = Some(gapi_token.to_string())
   }
 
   #[inline]
-  pub fn set_session_token<S>(&mut self, session_token: S)
-  where
-    S: ToString,
-  {
+  pub fn set_session_token<S: ToString>(&mut self, session_token: S) {
     self.session_token = Some(session_token.to_string())
+  }
+
+  #[inline]
+  pub fn set_oauth<S: ToString>(&mut self, verifier: PkceCodeVerifier, state: S) {
+    self.oauth = Some((verifier, state.to_string()))
   }
 }
 
 impl From<users::Model> for User {
   fn from(value: users::Model) -> Self {
-    Self {
-      model: value,
-      gapi_token: None,
-      session_token: None,
-    }
+    Self { model: value, gapi_token: None, session_token: None, oauth: None }
   }
 }
 
@@ -114,9 +123,7 @@ impl DatabaseError {
   where
     S: ToString,
   {
-    Self {
-      message: message.to_string(),
-    }
+    Self { message: message.to_string() }
   }
 
   #[inline]

@@ -1,14 +1,15 @@
 use std::{
-  hash::RandomState, str::FromStr, sync::{Arc, Mutex}
+  hash::RandomState,
+  str::FromStr,
+  sync::{Arc, Mutex},
 };
 
 use archive_config::CONFIG;
 use async_trait::async_trait;
 use log::info;
 use oauth2::{
-  basic::BasicClient, reqwest::async_http_client, url::Url, AuthUrl, AuthorizationCode, ClientId,
-  ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
-  TokenUrl,
+  basic::BasicClient, reqwest::async_http_client, url::Url, AuthUrl, AuthorizationCode, ClientId, ClientSecret,
+  CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse, TokenUrl,
 };
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::json;
@@ -28,23 +29,11 @@ impl OAuthMethod {
       ClientId::new(oauth_params.client_id),
       Some(ClientSecret::new(oauth_params.client_secret)),
       AuthUrl::from_url(Url::from_str(&oauth_params.auth_uri).unwrap()),
-      Some(TokenUrl::from_url(
-        Url::from_str(&oauth_params.token_uri).unwrap(),
-      )),
+      Some(TokenUrl::from_url(Url::from_str(&oauth_params.token_uri).unwrap())),
     )
-    .set_redirect_uri(
-      RedirectUrl::new(format!(
-        "http://localhost:{}/api/oauth/callback",
-        CONFIG.server.port
-      ))
-      .unwrap(),
-    );
+    .set_redirect_uri(RedirectUrl::new(format!("http://localhost:{}/api/oauth/callback", CONFIG.server.port)).unwrap());
 
-    Self {
-      oauth_client,
-      access_token: None,
-      pkce_verifier: Arc::new(Mutex::new(None)),
-    }
+    Self { oauth_client, access_token: None, pkce_verifier: Arc::new(Mutex::new(None)) }
   }
 
   #[inline]
@@ -54,20 +43,14 @@ impl OAuthMethod {
 
   pub fn generate_auth_url(&self) -> (String, PkceCodeVerifier, String) {
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-    let state: String = rand::thread_rng()
-      .sample_iter(&Alphanumeric)
-      .take(32)
-      .map(char::from)
-      .collect();
+    let state: String = rand::thread_rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
 
     let csrf_token = CsrfToken::new(state.clone());
 
     let auth_url = self
       .oauth_client
       .authorize_url(|| csrf_token)
-      .add_scope(Scope::new(
-        "https://www.googleapis.com/auth/photoslibrary.readonly".to_string(),
-      ))
+      .add_scope(Scope::new("https://www.googleapis.com/auth/photoslibrary.readonly".to_string()))
       .set_pkce_challenge(pkce_challenge)
       .url();
 
@@ -104,29 +87,5 @@ impl OAuthMethod {
     res.add_header("location".to_string(), "/");
 
     Some(res)
-  }
-}
-
-#[async_trait]
-impl ApiMethod for OAuthMethod {
-  fn get_endpoint(&self) -> &str {
-    "/oauth"
-  }
-
-  async fn handle_get<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>>
-  where
-    'r: 's,
-  {
-    match req.get_endpoint().rsplit("/").next() {
-      Some("callback") => return self.handle_callback(req).await,
-      Some(_) | None => return Some(Response::basic(400, "Bad Request")),
-    }
-  }
-
-  async fn handle_post<'s, 'r>(&'s mut self, _req: Request<'r>) -> Option<Response<'r>>
-  where
-    'r: 's,
-  {
-    None
   }
 }
