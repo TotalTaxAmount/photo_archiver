@@ -3,8 +3,6 @@ use std::{
   borrow::BorrowMut,
   collections::{BTreeMap, HashMap},
   error::Error,
-  fmt::write,
-  process::exit,
   sync::Arc,
   time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -12,18 +10,17 @@ use std::{
 use archive_config::CONFIG;
 use archive_database::{database::SharedDatabase, entities::users, structs::User};
 use async_trait::async_trait;
-use chrono::SubsecRound;
+use bcrypt::{hash, verify, BcryptError, DEFAULT_COST};
 use dashmap::DashMap;
 use hmac::{Hmac, Mac};
 use jwt::{token::Signed, Header, SignWithKey, Token, VerifyWithKey};
 use log::{debug, error, trace};
-use oauth2::http::uri;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use tokio::{sync::Mutex, time::sleep};
 use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
 
-use super::oauth::{OAuthFlow, OAuthParameters};
+use super::oauth::OAuthFlow;
 
 pub type SharedUserManager = Arc<Mutex<UserManager>>;
 
@@ -121,10 +118,12 @@ impl UserManager {
     })
   }
 
-  pub fn hash_password<S: ToString>(password: S) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(password.to_string());
-    hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+  fn hash_password<S: ToString>(password: S) -> String {
+    hash(password.to_string(), DEFAULT_COST).unwrap_or_else(|_| "".to_string())
+  }
+
+  fn verify_password(password: &str, hashed_password: &str) -> Result<bool, BcryptError> {
+    verify(password, hashed_password)
   }
 
   fn validate_token(&self, token_str: &str) -> Result<(bool, i32), UserManagerError> {
@@ -268,7 +267,7 @@ impl UserManager {
     let password = json["password"].as_str()?;
 
     if let Ok(mut u) = { self.database.lock().await.get_user_by(users::Column::Username, username).await } {
-      if Self::hash_password(password) == u.get_password_hash() {
+      if let Ok(_) = UserManager::verify_password(password, &u.get_password_hash()) {
         let session_token = Self::generate_session_token(u.clone());
         let session_token = session_token.unwrap();
         u.borrow_mut().set_session_token(session_token.as_str());
