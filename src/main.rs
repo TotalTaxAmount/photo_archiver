@@ -1,4 +1,5 @@
 mod user;
+mod photos;
 
 use std::{
   env::{set_var, var},
@@ -8,6 +9,7 @@ use std::{
 use archive_config::CONFIG;
 use archive_database::database::PhotoArchiverDatabase;
 use log::{error, info};
+use photos::photo_manager::{self, PhotoManager};
 use user::user_manager::UserManager;
 use webrs::server::WebrsHttp;
 
@@ -31,13 +33,15 @@ async fn main() -> std::io::Result<()> {
 
   let database = PhotoArchiverDatabase::new(CONFIG.database.clone());
   let user_manager = UserManager::new(http_server.clone(), database.clone());
+  let photo_manager = PhotoManager::new(user_manager.clone());
 
   database.lock().await.init().await.unwrap_or_else(|e| {
     error!("Failed to initialize database: {}", e);
     exit(1)
   });
-  user_manager.lock().await.init().await;
+
   http_server.register_method(user_manager.clone()).await;
+  http_server.register_method(photo_manager.clone()).await;
 
   // let http_server_clone = http_server.clone();
   let _ = http_server.start().await;
