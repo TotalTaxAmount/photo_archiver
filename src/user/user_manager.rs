@@ -6,11 +6,13 @@ use std::{
   fmt::write,
   process::exit,
   sync::Arc,
+  time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use archive_config::CONFIG;
 use archive_database::{database::SharedDatabase, entities::users, structs::User};
 use async_trait::async_trait;
+use chrono::SubsecRound;
 use dashmap::DashMap;
 use hmac::{Hmac, Mac};
 use jwt::{token::Signed, Header, SignWithKey, Token, VerifyWithKey};
@@ -18,7 +20,7 @@ use log::{debug, error, trace};
 use oauth2::http::uri;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::sleep};
 use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
 
 use super::oauth::{OAuthFlow, OAuthParameters};
@@ -63,12 +65,33 @@ pub struct UserManager {
   database: SharedDatabase,
   http_server: Arc<WebrsHttp>,
   active_users: DashMap<i32, User>,
-  oauth_flows: HashMap<String, (i32, OAuthFlow)>,
+  oauth_flows: HashMap<String, (i32, OAuthFlow, u64)>,
 }
 
 impl UserManager {
   pub fn new(http_server: Arc<WebrsHttp>, database: SharedDatabase) -> SharedUserManager {
-    Arc::new(Mutex::new(Self { http_server, database, active_users: DashMap::new(), oauth_flows: HashMap::new() }))
+    let user_manager =
+      Arc::new(Mutex::new(Self { http_server, database, active_users: DashMap::new(), oauth_flows: HashMap::new() }));
+
+    let cleanup = Arc::clone(&user_manager);
+    tokio::spawn(async move {
+      let max_time = 600;
+      loop {
+        sleep(Duration::from_secs(60)).await;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let mut user_manager = cleanup.lock().await;
+        user_manager.oauth_flows.retain(|state, (id, _, timestamp)| {
+          if now - *timestamp > max_time {
+            trace!("Removing expired OAuth flow: state = {}, id = {}", state, id);
+            false
+          } else {
+            true
+          }
+        });
+      }
+    });
+
+    user_manager
   }
 
   pub async fn init(&self) {}
@@ -328,7 +351,8 @@ impl UserManager {
     }
 
     trace!("New OAuth flow added, state = {}, id = {}", state, id);
-    self.oauth_flows.insert(state, (id, flow));
+    let curr_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    self.oauth_flows.insert(state, (id, flow, curr_time));
     return Some(Response::from_json(200, json!({ "oauth_url": url })).unwrap());
   }
 
@@ -345,7 +369,7 @@ impl UserManager {
       return Some(Response::from_json(400, json!({ "error": "No code param" })).unwrap());
     };
 
-    let (id, flow) = if let Some(f) = self.oauth_flows.get_mut(*state) {
+    let (id, flow, _) = if let Some(f) = self.oauth_flows.get_mut(*state) {
       f
     } else {
       return Some(Response::from_json(401, json!({ "error": "No flow for state" })).unwrap());
