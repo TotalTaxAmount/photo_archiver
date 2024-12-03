@@ -69,7 +69,6 @@ impl OAuthFlow {
     Ok(Self { user_id, oauth_client, pkce_verifier: Arc::new(Mutex::new(None)) })
   }
 
-
   #[inline]
   pub fn get_user_id(&self) -> i32 {
     self.user_id

@@ -11,7 +11,7 @@ export const authToken = tokenStorage ?  persist(writable(null), tokenStorage, '
 
 export const validateToken = async (token: string) : Promise<boolean> => {
   try {
-    const res = await axios.post('/api/users/validate', { token });
+    const res = await axios.get('/api/users/validate', { headers: { "Authorization": `Bearer ${token}` } });
     if (res.status !== 200) {
       return false
     }

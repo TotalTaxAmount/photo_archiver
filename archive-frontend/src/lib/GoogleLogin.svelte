@@ -2,9 +2,10 @@
   import { goto } from '$app/navigation';
   import googleIcon from '$lib/assets/google.svg'
   import axios from 'axios';
+  import { authToken } from './stores/auth';
 
   const login = async () => {
-    let oauthUrl = await axios.get('/api/oauth/new');
+    let oauthUrl = await axios.get('/api/users/oauth/url', { headers: { "Authorization": `Bearer ${$authToken}` } });
     if (oauthUrl.status === 200) {
       window.location = oauthUrl.data.oauth_url;
     }

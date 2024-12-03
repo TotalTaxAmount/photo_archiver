@@ -1,11 +1,17 @@
 use core::fmt;
 use std::{
-  borrow::BorrowMut, collections::{BTreeMap, HashMap}, error::Error, process::exit, sync::Arc
+  borrow::BorrowMut,
+  collections::{BTreeMap, HashMap},
+  error::Error,
+  fmt::write,
+  process::exit,
+  sync::Arc,
 };
 
 use archive_config::CONFIG;
 use archive_database::{database::SharedDatabase, entities::users, structs::User};
 use async_trait::async_trait;
+use dashmap::DashMap;
 use hmac::{Hmac, Mac};
 use jwt::{token::Signed, Header, SignWithKey, Token, VerifyWithKey};
 use log::{debug, error, trace};
@@ -19,6 +25,8 @@ use super::oauth::{OAuthFlow, OAuthParameters};
 
 pub type SharedUserManager = Arc<Mutex<UserManager>>;
 
+const AUTH_HEADER: &str = "authorization";
+
 #[derive(Debug)]
 pub enum UserManagerError {
   TokenError(String),
@@ -27,10 +35,9 @@ pub enum UserManagerError {
 
 impl fmt::Display for UserManagerError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::TokenError(msg) | Self::AuthenticationError(msg) => {
-        write!(f, "{}: {}", self.to_string(), msg)
-      }
+    match &self {
+      Self::AuthenticationError(m) => write!(f, "Authentication Error: {}", m),
+      Self::TokenError(m) => write!(f, "Token Error: {}", m),
     }
   }
 }
@@ -55,19 +62,19 @@ impl UserManagerError {
 pub struct UserManager {
   database: SharedDatabase,
   http_server: Arc<WebrsHttp>,
-  active_users: HashMap<i32, User>,
+  active_users: DashMap<i32, User>,
   oauth_flows: HashMap<String, (i32, OAuthFlow)>,
 }
 
 impl UserManager {
   pub fn new(http_server: Arc<WebrsHttp>, database: SharedDatabase) -> SharedUserManager {
-    Arc::new(Mutex::new(Self { http_server, database, active_users: HashMap::new(), oauth_flows: HashMap::new() }))
+    Arc::new(Mutex::new(Self { http_server, database, active_users: DashMap::new(), oauth_flows: HashMap::new() }))
   }
 
   pub async fn init(&self) {}
 
   #[inline]
-  pub fn get_active_users(&self) -> &HashMap<i32, User> {
+  pub fn get_active_users(&self) -> &DashMap<i32, User> {
     &self.active_users
   }
 
@@ -128,14 +135,11 @@ impl UserManager {
     }
   }
 
-  async fn validate_request<'s, 'r>(&'s self, req: &Request<'r>) -> Result<i32, UserManagerError> {
+  pub async fn validate_request<'s, 'r>(&'s self, req: &Request<'r>) -> Result<i32, UserManagerError> {
     let headers = req.get_headers();
-    trace!("Headers: {:?}", headers);
-    let auth_header = headers
-      .get("authorization")
-      .ok_or(UserManagerError::AuthenticationError("No 'authorization' header".to_owned()))?;
+    let auth_header =
+      headers.get(AUTH_HEADER).ok_or(UserManagerError::AuthenticationError("No 'authorization' header".to_owned()))?;
 
-    trace!("Auth header: {}", auth_header);
     if !auth_header.starts_with("Bearer ") {
       return Err(UserManagerError::AuthenticationError("Invalid header format".to_owned()));
     }
@@ -319,7 +323,7 @@ impl UserManager {
 
     let (url, state) = flow.generate_auth_url();
 
-    if self.active_users.get(&id) == None {
+    if self.active_users.get(&id).is_none() {
       return Some(Response::from_json(401, json!({ "error": "User is not logged in or does not exist"})).unwrap());
     }
 
@@ -330,12 +334,27 @@ impl UserManager {
 
   async fn handle_oauth_callback<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
     let params = req.get_url_params();
-    let state = if let Some(s) = params.get("state") { s } else { return Some(Response::from_json(400, json!({ "error": "No state param" })).unwrap()); };
-    let code = if let Some(s) = params.get("code") { s } else { return Some(Response::from_json(400, json!({ "error": "No code param" })).unwrap()); };
+    let state = if let Some(s) = params.get("state") {
+      s
+    } else {
+      return Some(Response::from_json(400, json!({ "error": "No state param" })).unwrap());
+    };
+    let code = if let Some(s) = params.get("code") {
+      s
+    } else {
+      return Some(Response::from_json(400, json!({ "error": "No code param" })).unwrap());
+    };
 
-    let (id, flow) = if let Some(f) = self.oauth_flows.get_mut(*state) { f } else { return Some(Response::from_json(401, json!({ "error": "No flow for state" })).unwrap()); };
-    
-    let mut u: &mut User = self.active_users.get_mut(&id).unwrap(); // Should always be active here
+    let (id, flow) = if let Some(f) = self.oauth_flows.get_mut(*state) {
+      f
+    } else {
+      return Some(Response::from_json(401, json!({ "error": "No flow for state" })).unwrap());
+    };
+
+    let mut u = match self.active_users.get_mut(&id) {
+      Some(u) => u,
+      None => return Some(Response::from_json(401, json!({ "error": "User is not active" })).unwrap()),
+    }; // Should always be active here
 
     if flow.get_user_id() != *id {
       return Some(Response::from_json(401, json!({ "error": "Invalid id" })).unwrap());
@@ -343,13 +362,15 @@ impl UserManager {
 
     let mut res: Option<Response> = None;
     match flow.process(code.to_string()).await {
-        Ok(t) => u.set_gapi_token(t),
-        Err(e) => {
-          res = Some(Response::from_json(501, json!({ "error": e.to_string() })).unwrap());
-        },
+      Ok(t) => u.set_gapi_token(t),
+      Err(e) => {
+        res = Some(Response::from_json(501, json!({ "error": e.to_string() })).unwrap());
+      }
     };
 
+    trace!("Removed OAuth flow: state = {}, id = {}", &state, &id);
     self.oauth_flows.remove(*state);
+
     if res.is_none() {
       let mut temp = Response::basic(301, "Found");
       temp.add_header("location".to_string(), "/");
@@ -357,7 +378,6 @@ impl UserManager {
     }
 
     res
-
   }
 }
 
@@ -372,6 +392,7 @@ impl ApiMethod for UserManager {
     'r: 's,
   {
     match req.get_endpoint().rsplit("users/").next() {
+      Some("validate") => self.handle_verify_token(req).await,
       Some("oauth/url") => self.handle_new_oauth_url(req).await,
       Some("oauth/callback") => self.handle_oauth_callback(req).await,
       _ => Some(Response::basic(404, "Not Found")),
@@ -387,7 +408,6 @@ impl ApiMethod for UserManager {
       Some("delete") => self.handle_delete_user(req).await,
       Some("modify") => self.handle_modify_user(req).await,
       Some("login") => self.handle_user_login(req).await,
-      Some("validate") => self.handle_verify_token(req).await,
       _ => Some(Response::basic(404, "Not Found")),
     }
   }
