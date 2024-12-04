@@ -17,7 +17,7 @@ use jwt::{token::Signed, Header, SignWithKey, Token, VerifyWithKey};
 use log::{debug, error, trace};
 use serde_json::{json, Value};
 use sha2::Sha256;
-use tokio::{sync::Mutex, time::sleep};
+use tokio::{sync::Mutex, time::{interval, sleep}};
 use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
 
 use super::oauth::OAuthFlow;
@@ -72,11 +72,13 @@ impl UserManager {
 
     let cleanup = Arc::clone(&user_manager);
     tokio::spawn(async move {
-      let max_time = 600;
+      let max_time: u64 = 600;
+      let mut interval = interval(Duration::from_secs(60));
       loop {
-        sleep(Duration::from_secs(60)).await;
+        interval.tick().await;
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let mut user_manager = cleanup.lock().await;
+
         user_manager.oauth_flows.retain(|state, (id, _, timestamp)| {
           if now - *timestamp > max_time {
             trace!("Removing expired OAuth flow: state = {}, id = {}", state, id);
@@ -351,6 +353,14 @@ impl UserManager {
 
     trace!("New OAuth flow added, state = {}, id = {}", state, id);
     let curr_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    self.oauth_flows.retain(|_, (i, _, _)| {
+      if id != *i {
+        return true;
+      } else {
+        trace!("User {} created new oauth flow, removing old", id);
+        return false;
+      }
+    });
     self.oauth_flows.insert(state, (id, flow, curr_time));
     return Some(Response::from_json(200, json!({ "oauth_url": url })).unwrap());
   }
