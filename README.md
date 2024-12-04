@@ -9,4 +9,5 @@
 - [ ] Give users a role (Admin, Member, etc)
 - [ ] Write documentation
 - [ ] Migration stuff
-- [ ] Refresh tokens
+- [ ] Refresh tokens (Use the ones from google, maybe have a way to refresh photo archiver JWT tokens?)
+- [ ] Write tests
