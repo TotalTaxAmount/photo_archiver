@@ -62,13 +62,13 @@ pub struct UserManager {
   database: SharedDatabase,
   http_server: Arc<WebrsHttp>,
   active_users: DashMap<i32, User>,
-  oauth_flows: HashMap<String, (i32, OAuthFlow, u64)>,
+  oauth_flows: DashMap<String, (i32, OAuthFlow, u64)>,
 }
 
 impl UserManager {
   pub fn new(http_server: Arc<WebrsHttp>, database: SharedDatabase) -> SharedUserManager {
     let user_manager =
-      Arc::new(Mutex::new(Self { http_server, database, active_users: DashMap::new(), oauth_flows: HashMap::new() }));
+      Arc::new(Mutex::new(Self { http_server, database, active_users: DashMap::new(), oauth_flows: DashMap::new() }));
 
     let cleanup = Arc::clone(&user_manager);
     tokio::spawn(async move {
@@ -77,7 +77,7 @@ impl UserManager {
       loop {
         interval.tick().await;
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        let mut user_manager = cleanup.lock().await;
+        let user_manager = cleanup.lock().await;
 
         user_manager.oauth_flows.retain(|state, (id, _, timestamp)| {
           if now - *timestamp > max_time {
@@ -336,6 +336,10 @@ impl UserManager {
       }
     };
 
+    if self.active_users.get(&id).is_none() {
+      return Some(Response::from_json(401, json!({ "error": "User is not logged in or does not exist"})).unwrap());
+    }
+
     let mut flow = match OAuthFlow::new(id) {
       Ok(f) => f,
       Err(e) =>
@@ -346,10 +350,6 @@ impl UserManager {
     };
 
     let (url, state) = flow.generate_auth_url();
-
-    if self.active_users.get(&id).is_none() {
-      return Some(Response::from_json(401, json!({ "error": "User is not logged in or does not exist"})).unwrap());
-    }
 
     trace!("New OAuth flow added, state = {}, id = {}", state, id);
     let curr_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
@@ -378,8 +378,8 @@ impl UserManager {
       return Some(Response::from_json(400, json!({ "error": "No code param" })).unwrap());
     };
 
-    let (id, flow, _) = if let Some(f) = self.oauth_flows.get_mut(*state) {
-      f
+    let (id, mut flow) = if let Some(f) = self.oauth_flows.get_mut(*state) {
+      (f.0, f.1.clone())
     } else {
       return Some(Response::from_json(401, json!({ "error": "No flow for state" })).unwrap());
     };
@@ -389,7 +389,7 @@ impl UserManager {
       None => return Some(Response::from_json(401, json!({ "error": "User is not active" })).unwrap()),
     }; // Should always be active here
 
-    if flow.get_user_id() != *id {
+    if flow.get_user_id() != id {
       return Some(Response::from_json(401, json!({ "error": "Invalid id" })).unwrap());
     }
 
@@ -401,14 +401,14 @@ impl UserManager {
       }
     };
 
-    trace!("Removed OAuth flow: state = {}, id = {}", &state, &id);
-    self.oauth_flows.remove(*state);
-
     if res.is_none() {
       let mut temp = Response::basic(301, "Found");
       temp.add_header("location".to_string(), "/");
       res = Some(temp);
     }
+
+    trace!("Removed OAuth flow: state = {}, id = {}, code = {}", &state, &id, res.as_ref().unwrap().get_code());
+    self.oauth_flows.remove(*state);
 
     res
   }
