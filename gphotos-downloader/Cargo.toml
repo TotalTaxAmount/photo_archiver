@@ -15,3 +15,4 @@ tokio = { version = "1.41.1", features = [ "full"] }
 reqwest = "0.11"
 log = "0.4.22"
 pretty_env_logger = "0.5.0"
+uid = "0.1.8"

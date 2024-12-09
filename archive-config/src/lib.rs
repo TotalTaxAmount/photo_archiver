@@ -39,10 +39,16 @@ pub struct AuthConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct DownloaderConfig {
+  pub pool_size: usize
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
   pub server: ServerConfig,
   pub database: DatabaseConfig,
   pub auth: AuthConfig,
+  pub downloader: DownloaderConfig
 }
 
 impl Default for Config {
@@ -63,6 +69,7 @@ impl Default for Config {
         dbname: "photoarchiver".to_string(),
       },
       auth: AuthConfig { jwt_secret: "changeme".to_string() },
+      downloader: DownloaderConfig { pool_size: 5 }
     }
   }
 }

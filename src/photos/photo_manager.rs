@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
+use archive_config::CONFIG;
 use async_trait::async_trait;
+use gphotos_downloader::DownloaderPool;
+use log::trace;
 use tokio::sync::Mutex;
 use webrs::{api::ApiMethod, request::Request, response::Response};
 
@@ -10,11 +13,15 @@ pub type SharedPhotoManager = Arc<Mutex<PhotoManager>>;
 
 pub struct PhotoManager {
   user_manager: SharedUserManager,
+  pool: Arc<DownloaderPool>
 }
 
 impl PhotoManager {
   pub fn new(user_manager: SharedUserManager) -> SharedPhotoManager {
-    Arc::new(Mutex::new(Self { user_manager }))
+    Arc::new(Mutex::new(Self { 
+      user_manager,
+      pool: DownloaderPool::new(CONFIG.downloader.pool_size)
+    }))
   }
 }
 
@@ -28,20 +35,21 @@ impl ApiMethod for PhotoManager {
   where
     'r: 's,
   {
-    let id = match __self.user_manager.lock().await.validate_request(&req).await {
+    let id = match self.user_manager.lock().await.validate_request(&req).await {
         Ok(id) => id,
-        Err(e) => return Some(Response::basic(401, "Unauthorized")),
+        Err(_) => return Some(Response::basic(401, "Unauthorized")),
     };
-    None
+
+    Some(Response::basic(200, &txt))
   }
 
   async fn handle_post<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> 
   where 
     'r: 's,
   {
-    let id = match __self.user_manager.lock().await.validate_request(&req).await {
+    let id = match self.user_manager.lock().await.validate_request(&req).await {
       Ok(id) => id,
-      Err(e) => return Some(Response::basic(401, "Unauthorized")),
+      Err(_) => return Some(Response::basic(401, "Unauthorized")),
     };
     None
   }
