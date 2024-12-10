@@ -12,3 +12,4 @@
 - [ ] Migration stuff
 - [ ] Refresh tokens (Use the ones from google, maybe have a way to refresh photo archiver JWT tokens?)
 - [ ] Write tests
+- [ ] Come up with scheme for postgres
