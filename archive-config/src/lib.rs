@@ -79,7 +79,13 @@ impl Config {
   where
     P: AsRef<Path> + ToString,
   {
-    let set_default = !Path::new(&path.to_string()).exists();
+    let set_default = !match Path::new(&path.to_string()).try_exists() {
+        Ok(b) => b,
+        Err(e) => {
+          error!("Failed to check if config file exists: {}", e);
+          exit(1)
+        },
+    };
 
     let mut config_file = match File::options().create(true).write(true).read(true).append(true).open(&path) {
       Ok(f) => f,

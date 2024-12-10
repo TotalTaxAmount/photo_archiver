@@ -40,7 +40,7 @@ impl ApiMethod for PhotoManager {
         Err(_) => return Some(Response::basic(401, "Unauthorized")),
     };
 
-    Some(Response::basic(200, &txt))
+    None
   }
 
   async fn handle_post<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> 
