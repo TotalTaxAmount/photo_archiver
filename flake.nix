@@ -32,8 +32,8 @@
       '';
 
       installPhase = ''
-        mkdir -p $out
-        mv build $out/
+        mkdir -p $out/share/frontend
+        mv build/* $out/share/frontend
       '';
     };
 
@@ -59,13 +59,13 @@
       default = pkgs.stdenv.mkDerivation {
         name = pname;
         version = version;
-        
+
         buildInputs = [backend frontend];
         phases = [ "installPhase" ];
         installPhase = ''
-          mkdir -p $out/bin $out/share/archive-frontend
-          cp  ${backend}/bin/photo_archiver $out/bin/${pname}
-          cp -r ${frontend}/ $out/share/archive-frontend
+          mkdir -p $out/bin $out/share
+          cp ${backend}/bin/photo_archiver $out/bin/${pname}
+          cp -r ${frontend}/share/ $out/share/
         '';
       };
       frontend = frontend;

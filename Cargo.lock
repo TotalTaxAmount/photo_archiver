@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "archive-database"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "archive-config",
  "jwt",
@@ -1136,7 +1136,7 @@ dependencies = [
 
 [[package]]
 name = "gphotos-downloader"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "archive-database",
  "log",
