@@ -1,4 +1,5 @@
 #[derive(Debug, Clone)]
 pub enum DownloaderError {
-  PoolError(String)
+  PoolError(String),
+  RequestError(String)
 }

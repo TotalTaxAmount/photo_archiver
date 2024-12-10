@@ -3,7 +3,8 @@ use std::sync::Arc;
 use archive_config::CONFIG;
 use async_trait::async_trait;
 use gphotos_downloader::DownloaderPool;
-use log::trace;
+use log::{error, trace};
+use serde_json::json;
 use tokio::sync::Mutex;
 use webrs::{api::ApiMethod, request::Request, response::Response};
 
@@ -23,6 +24,26 @@ impl PhotoManager {
       pool: DownloaderPool::new(CONFIG.downloader.pool_size)
     }))
   }
+
+  pub async fn handle_list_photos<'s, 'r>(&'s self, id: i32, req: Request<'r>) -> Option<Response<'r>>
+  where 
+    'r: 's,
+  {
+    let user_manager = self.user_manager.lock().await;
+    let user = user_manager.get_active_users().get(&id).unwrap();
+    
+    if let Some(token) = user.get_gapi_token() {
+      let mut downloader_guard = self.pool.clone().acquire().await.unwrap();
+      downloader_guard.get().set_token(token);
+      downloader_guard.get().list_photos(None).await;
+      
+    } else {
+      error!("User {} not logged into google", user.get_username());
+      return Some(Response::from_json(401, json!({ "error": "User is not logged into google" })).unwrap());
+    }
+
+    None
+  }
 }
 
 #[async_trait]
@@ -39,8 +60,10 @@ impl ApiMethod for PhotoManager {
         Ok(id) => id,
         Err(_) => return Some(Response::basic(401, "Unauthorized")),
     };
-
-    None
+    match req.get_endpoint().rsplit("photos/").next() {
+      Some("list") => self.handle_list_photos(id, req).await,
+      _ => return Some(Response::basic(404, "Not Found"))
+    }
   }
 
   async fn handle_post<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> 

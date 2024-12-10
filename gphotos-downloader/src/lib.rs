@@ -3,6 +3,9 @@ pub mod error;
 use std::{collections::VecDeque, sync::Arc, task};
 
 use error::DownloaderError;
+use log::trace;
+use reqwest::{Client, Response};
+use serde_json::{from_str, to_string, Value};
 use tokio::sync::{oneshot::{channel, Sender}, Mutex, OwnedSemaphorePermit, Semaphore};
 use uid::IdU8;
 
@@ -94,6 +97,11 @@ impl Drop for DownloaderGuard {
   }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Photo {
+
+}
+
 #[derive(Debug, Clone)]
 pub struct Downloader {
   access_token: Option<String>,
@@ -118,6 +126,26 @@ impl Downloader {
 
   pub fn get_id(&self) -> u8 {
     self.id.clone().get()
+  }
+
+  pub async fn list_photos(&self, next_page_token: Option<String>) -> Result<Vec<Photo>, DownloaderError> {
+    if self.access_token.is_none() {
+      todo!()
+    }
+    let token = self.access_token.as_ref().unwrap();
+    let mut photos: Vec<Photo> = Vec::new();
+
+    let client = Client::new();
+    let res = client
+      .get("https://photoslibrary.googleapis.com/v1/mediaItems")
+      .bearer_auth(token)
+      .send()
+      .await
+      .map_err(|e| DownloaderError::RequestError(e.to_string()))?;
+
+    trace!("Items: {:?}", to_string(&from_str::<Value>(&res.text().await.unwrap()).unwrap()));
+
+    Ok(photos)
   }
 } 
 

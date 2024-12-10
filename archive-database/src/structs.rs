@@ -1,6 +1,5 @@
 use core::fmt;
 
-use oauth2::PkceCodeVerifier;
 use serde::{Deserialize, Serialize};
 
 use crate::entities::users;
