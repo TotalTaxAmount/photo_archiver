@@ -3,7 +3,8 @@
 
 #### TODO:
 - [ ] Write the frontend
-- [ ] Fix the build in `flake.nix`
+- [x] Fix the build in `flake.nix`
+  - [ ] Config stuff the nix way
 - [x] Interact with google apis (besides getting auth token)
 - [ ] Use more type alias: (ex: Arc<Mutex<**Whatever**>> -> Shared**Whatever**)
 - [ ] Give users a role (Admin, Member, etc)
