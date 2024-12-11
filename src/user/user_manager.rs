@@ -1,28 +1,30 @@
 use core::fmt;
 use std::{
   borrow::BorrowMut,
-  collections::{BTreeMap, HashMap},
+  collections::BTreeMap,
   error::Error,
   sync::Arc,
   time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use archive_config::CONFIG;
-use archive_database::{database::SharedDatabase, entities::users, structs::{GUser, User}};
+use archive_database::{
+  database::SharedDatabase,
+  entities::users,
+  structs::{GUser, User},
+};
 use async_trait::async_trait;
 use bcrypt::{hash, verify, BcryptError, DEFAULT_COST};
 use dashmap::DashMap;
 use hmac::{Hmac, Mac};
 use jwt::{token::Signed, Header, SignWithKey, Token, VerifyWithKey};
-use log::{debug, error, kv::ToValue, trace};
+use log::{debug, error, trace};
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde::{de, Deserialize, Deserializer, Serialize};
+use serde_json::{from_str, json, Value};
 use sha2::Sha256;
-use tokio::{
-  sync::Mutex,
-  time::{interval, sleep},
-};
-use webrs::{api::ApiMethod, request::{ReqTypes, Request}, response::Response, server::WebrsHttp};
+use tokio::{sync::Mutex, time::interval};
+use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
 
 use super::oauth::OAuthFlow;
 
@@ -61,6 +63,11 @@ impl UserManagerError {
   }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct UserinfoJson {
+  pub(super) name: String,
+  pub(super) picture: String,
+}
 #[derive(Clone)]
 pub struct UserManager {
   database: SharedDatabase,
@@ -402,17 +409,23 @@ impl UserManager {
     match flow.process(code.to_string()).await {
       Ok(t) => {
         let client: Client = Client::new();
-        let res = client
-          .get("https://www.googleapis.com/oauth2/v1/userinfo?alt=json")
-          .bearer_auth(&t)
-          .send()
-          .await;
+        let res =
+          match client.get("https://www.googleapis.com/oauth2/v1/userinfo?alt=json").bearer_auth(&t).send().await {
+            Ok(r) => r.text().await.unwrap(),
+            Err(e) => {
+              error!("Failed to get google user info: {}", e);
+              return Some(Response::from_json(500, json!({ "error": "Failed to get google user info" })).unwrap());
+            }
+          };
         
-        trace!("{:?}", res.unwrap().text().await);
-        let guser = GUser::new(t, "username".to_owned(), "pfp_url".to_owned());
+        trace!("Res: {}", res);
+        let json: UserinfoJson = from_str(&res).unwrap(); // TODO: Handle this?
+    
 
+        let guser = GUser::new(t, json.name, json.picture);
+        trace!("{:?}", guser);
         u.set_guser(guser);
-      },
+      }
       Err(e) => {
         res = Some(Response::from_json(501, json!({ "error": e.to_string() })).unwrap());
       }
@@ -433,14 +446,14 @@ impl UserManager {
   pub async fn handle_user_info<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
     if let Ok(id) = self.validate_request(&req).await {
       let user = self.get_active_users().get(&id).unwrap();
-      // let google: bool = 
+      // let google: bool =
       let json = json!({
         "id": id,
         "username": user.get_username(),
         "created_at": user.get_created_at(),
         "google": if let Some(guser) = user.get_guser() {
           json!({
-            "username": guser.get_username(),
+            "username": guser.get_name(),
             "pfp_url": guser.get_pfp_url()
           })
         } else {

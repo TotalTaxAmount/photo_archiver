@@ -85,7 +85,7 @@ impl OAuthFlow {
       .authorize_url(|| csrf_token)
       .add_scopes([
         Scope::new("https://www.googleapis.com/auth/photoslibrary.readonly".to_string()),
-        Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_string())
+        Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_string()),
       ])
       .set_pkce_challenge(pkce_challenge)
       .url();

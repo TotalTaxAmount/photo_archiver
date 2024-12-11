@@ -14,7 +14,7 @@ pub struct User {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct GUser {
   auth_token: String,
-  username: String,
+  name: String,
   pfp_url: String,
 }
 
@@ -85,11 +85,11 @@ impl User {
 
 impl GUser {
   pub fn new(auth_token: String, username: String, pfp_url: String) -> Self {
-    Self { auth_token, username, pfp_url }
+    Self { auth_token, name: username, pfp_url }
   }
 
-  pub fn get_username(&self) -> &str {
-    &self.username
+  pub fn get_name(&self) -> &str {
+    &self.name
   }
 
   pub fn get_auth_token(&self) -> &str {
@@ -104,8 +104,8 @@ impl GUser {
     self.auth_token = auth_token.to_string();
   }
 
-  pub fn set_username<S: ToString>(&mut self, username: S) {
-    self.username = username.to_string();
+  pub fn set_name<S: ToString>(&mut self, name: S) {
+    self.name = name.to_string();
   }
 
   pub fn set_pfp_url<S: ToString>(&mut self, pfp_url: S) {
