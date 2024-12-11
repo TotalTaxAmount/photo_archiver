@@ -8,17 +8,21 @@ use std::{
 };
 
 use archive_config::CONFIG;
-use archive_database::{database::SharedDatabase, entities::users, structs::User};
+use archive_database::{database::SharedDatabase, entities::users, structs::{GUser, User}};
 use async_trait::async_trait;
 use bcrypt::{hash, verify, BcryptError, DEFAULT_COST};
 use dashmap::DashMap;
 use hmac::{Hmac, Mac};
 use jwt::{token::Signed, Header, SignWithKey, Token, VerifyWithKey};
-use log::{debug, error, trace};
+use log::{debug, error, kv::ToValue, trace};
+use reqwest::Client;
 use serde_json::{json, Value};
 use sha2::Sha256;
-use tokio::{sync::Mutex, time::{interval, sleep}};
-use webrs::{api::ApiMethod, request::Request, response::Response, server::WebrsHttp};
+use tokio::{
+  sync::Mutex,
+  time::{interval, sleep},
+};
+use webrs::{api::ApiMethod, request::{ReqTypes, Request}, response::Response, server::WebrsHttp};
 
 use super::oauth::OAuthFlow;
 
@@ -394,8 +398,21 @@ impl UserManager {
     }
 
     let mut res: Option<Response> = None;
+
     match flow.process(code.to_string()).await {
-      Ok(t) => u.set_gapi_token(t),
+      Ok(t) => {
+        let client: Client = Client::new();
+        let res = client
+          .get("https://www.googleapis.com/oauth2/v1/userinfo?alt=json")
+          .bearer_auth(&t)
+          .send()
+          .await;
+        
+        trace!("{:?}", res.unwrap().text().await);
+        let guser = GUser::new(t, "username".to_owned(), "pfp_url".to_owned());
+
+        u.set_guser(guser);
+      },
       Err(e) => {
         res = Some(Response::from_json(501, json!({ "error": e.to_string() })).unwrap());
       }
@@ -412,6 +429,30 @@ impl UserManager {
 
     res
   }
+
+  pub async fn handle_user_info<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
+    if let Ok(id) = self.validate_request(&req).await {
+      let user = self.get_active_users().get(&id).unwrap();
+      // let google: bool = 
+      let json = json!({
+        "id": id,
+        "username": user.get_username(),
+        "created_at": user.get_created_at(),
+        "google": if let Some(guser) = user.get_guser() {
+          json!({
+            "username": guser.get_username(),
+            "pfp_url": guser.get_pfp_url()
+          })
+        } else {
+          json!(false)
+        }
+      });
+
+      return Some(Response::from_json(200, json).unwrap());
+    }
+
+    None
+  }
 }
 
 #[async_trait]
@@ -426,6 +467,7 @@ impl ApiMethod for UserManager {
   {
     match req.get_endpoint().rsplit("users/").next() {
       Some("validate") => self.handle_verify_token(req).await,
+      Some("userinfo") => self.handle_user_info(req).await,
       Some("oauth/url") => self.handle_new_oauth_url(req).await,
       Some("oauth/callback") => self.handle_oauth_callback(req).await,
       _ => Some(Response::basic(404, "Not Found")),

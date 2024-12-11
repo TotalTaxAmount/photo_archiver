@@ -1,5 +1,5 @@
-mod user;
 mod photos;
+mod user;
 
 use std::{
   env::{set_var, var},

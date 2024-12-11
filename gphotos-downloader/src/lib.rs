@@ -1,4 +1,5 @@
 pub mod error;
+pub mod structs;
 
 use std::{collections::VecDeque, sync::Arc, task};
 
@@ -6,13 +7,17 @@ use error::DownloaderError;
 use log::trace;
 use reqwest::{Client, Response};
 use serde_json::{from_str, to_string, Value};
-use tokio::sync::{oneshot::{channel, Sender}, Mutex, OwnedSemaphorePermit, Semaphore};
+use structs::{DownloaderGuard, MediaItemsResponse};
+use tokio::sync::{
+  oneshot::{channel, Sender},
+  Mutex, OwnedSemaphorePermit, Semaphore,
+};
 use uid::IdU8;
 
 pub struct DownloaderPool {
   pool: Mutex<VecDeque<Downloader>>,
   semaphore: Arc<Semaphore>,
-  pending_tasks : Mutex<VecDeque<DownloadTask>>
+  pending_tasks: Mutex<VecDeque<DownloadTask>>,
 }
 
 type DownloadTask = Sender<Result<DownloaderGuard, DownloaderError>>;
@@ -26,7 +31,7 @@ impl DownloaderPool {
     Arc::new(Self {
       pool: Mutex::new(downloaders),
       semaphore: Arc::new(Semaphore::new(pool_size)),
-      pending_tasks: Mutex::new(VecDeque::new())
+      pending_tasks: Mutex::new(VecDeque::new()),
     })
   }
 
@@ -40,11 +45,7 @@ impl DownloaderPool {
       };
 
       if downloader.is_some() {
-        return Ok(DownloaderGuard {
-          downloader,
-          pool: self.clone(),
-          _permit: p
-        });
+        return Ok(DownloaderGuard { downloader, pool: self.clone(), _permit: p });
       }
     }
 
@@ -65,75 +66,39 @@ impl DownloaderPool {
     if let Some(task) = pending.pop_front() {
       let p = self.semaphore.clone().acquire_owned().await.unwrap();
       let downloader = pool.pop_front().unwrap();
-      let _ = task.send(Ok(DownloaderGuard {
-        downloader: Some(downloader),
-        pool: self.clone(),
-        _permit: p
-      }));
+      let _ = task.send(Ok(DownloaderGuard { downloader: Some(downloader), pool: self.clone(), _permit: p }));
     }
   }
-}
-
-pub struct DownloaderGuard {
-  downloader: Option<Downloader>,
-  pool: Arc<DownloaderPool>,
-  _permit: OwnedSemaphorePermit
-}
-
-impl DownloaderGuard {
-  pub fn get(&mut self) -> &mut Downloader {
-    self.downloader.as_mut().unwrap()
-  }
-}
-
-impl Drop for DownloaderGuard {
-  fn drop(&mut self) {
-    if let Some(d) = self.downloader.take() {
-      let pool = self.pool.clone();
-      tokio::spawn(async move {
-        pool.return_to_pool(d).await
-      });
-    }
-  }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Photo {
-
 }
 
 #[derive(Debug, Clone)]
 pub struct Downloader {
   access_token: Option<String>,
-  id: IdU8<Self>
+  id: IdU8<Self>,
 }
 
 impl Downloader {
-  pub fn new() -> Self{
-    Self { 
-      access_token: None,
-      id: IdU8::<Self>::new()
-    }
+  pub fn new() -> Self {
+    Self { access_token: None, id: IdU8::<Self>::new() }
   }
 
-  pub fn set_token(&mut self, token: String) {
-    self.access_token = Some(token);
+  pub fn set_token<S: ToString>(&mut self, token: S) {
+    self.access_token = Some(token.to_string());
   }
 
   pub fn get_token(&self) -> Option<String> {
     self.access_token.clone()
-  } 
+  }
 
   pub fn get_id(&self) -> u8 {
     self.id.clone().get()
   }
 
-  pub async fn list_photos(&self, next_page_token: Option<String>) -> Result<Vec<Photo>, DownloaderError> {
+  pub async fn list_photos(&self, next_page_token: Option<String>) -> Result<MediaItemsResponse, DownloaderError> {
     if self.access_token.is_none() {
       todo!()
     }
     let token = self.access_token.as_ref().unwrap();
-    let mut photos: Vec<Photo> = Vec::new();
 
     let client = Client::new();
     let res = client
@@ -143,9 +108,8 @@ impl Downloader {
       .await
       .map_err(|e| DownloaderError::RequestError(e.to_string()))?;
 
-    trace!("Items: {:?}", to_string(&from_str::<Value>(&res.text().await.unwrap()).unwrap()));
-
-    Ok(photos)
+    let text = res.text().await.unwrap();
+    MediaItemsResponse::try_from(text)
+      .map_err(|e| DownloaderError::ApiError(format!("Bad json from gAPI: {}", e.to_string())))
   }
-} 
-
+}

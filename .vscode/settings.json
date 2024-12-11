@@ -4,6 +4,7 @@
     "creds",
     "dbname",
     "gapi",
+    "guser",
     "hostaddr",
     "LOGLEVEL",
     "photoarchiver",

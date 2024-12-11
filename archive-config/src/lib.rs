@@ -40,7 +40,7 @@ pub struct AuthConfig {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DownloaderConfig {
-  pub pool_size: usize
+  pub pool_size: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -48,7 +48,7 @@ pub struct Config {
   pub server: ServerConfig,
   pub database: DatabaseConfig,
   pub auth: AuthConfig,
-  pub downloader: DownloaderConfig
+  pub downloader: DownloaderConfig,
 }
 
 impl Default for Config {
@@ -69,7 +69,7 @@ impl Default for Config {
         dbname: "photoarchiver".to_string(),
       },
       auth: AuthConfig { jwt_secret: "changeme".to_string() },
-      downloader: DownloaderConfig { pool_size: 5 }
+      downloader: DownloaderConfig { pool_size: 5 },
     }
   }
 }
@@ -80,11 +80,11 @@ impl Config {
     P: AsRef<Path> + ToString,
   {
     let set_default = !match Path::new(&path.to_string()).try_exists() {
-        Ok(b) => b,
-        Err(e) => {
-          error!("Failed to check if config file exists: {}", e);
-          exit(1)
-        },
+      Ok(b) => b,
+      Err(e) => {
+        error!("Failed to check if config file exists: {}", e);
+        exit(1)
+      }
     };
 
     let mut config_file = match File::options().create(true).write(true).read(true).append(true).open(&path) {

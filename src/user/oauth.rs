@@ -83,7 +83,10 @@ impl OAuthFlow {
     let auth_url = self
       .oauth_client
       .authorize_url(|| csrf_token)
-      .add_scope(Scope::new("https://www.googleapis.com/auth/photoslibrary.readonly".to_string()))
+      .add_scopes([
+        Scope::new("https://www.googleapis.com/auth/photoslibrary.readonly".to_string()),
+        Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_string())
+      ])
       .set_pkce_challenge(pkce_challenge)
       .url();
 
@@ -94,12 +97,12 @@ impl OAuthFlow {
     (auth_url.0.to_string(), state)
   }
 
-  pub async fn process(&mut self, code: String) -> Result<String, Box<dyn Error>> {
+  pub async fn process(&mut self, code: String) -> Result<String, UserManagerError> {
     let auth_code = AuthorizationCode::new(code);
 
     let pkce_verifier = match self.pkce_verifier.lock().unwrap().take() {
       Some(v) => v,
-      None => return Err(Box::new(UserManagerError::AuthenticationError("Internal Server Error".to_owned()))),
+      None => return Err(UserManagerError::AuthenticationError("Internal Server Error".to_owned())),
     };
 
     let token_res = self
@@ -107,7 +110,8 @@ impl OAuthFlow {
       .exchange_code(auth_code)
       .set_pkce_verifier(pkce_verifier)
       .request_async(async_http_client)
-      .await?;
+      .await
+      .map_err(|_| UserManagerError::AuthenticationError("Internal OAuth error".to_owned()))?;
 
     let access_token = token_res.access_token().secret().to_string();
     let hidden = {

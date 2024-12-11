@@ -7,8 +7,15 @@ use crate::entities::users;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct User {
   model: users::Model,
-  gapi_token: Option<String>,
+  guser: Option<GUser>,
   session_token: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct GUser {
+  auth_token: String,
+  username: String,
+  pfp_url: String,
 }
 
 impl User {
@@ -20,7 +27,7 @@ impl User {
         id: -1,
         created_at: None,
       },
-      gapi_token: None,
+      guser: None,
       session_token: None,
     }
   }
@@ -46,8 +53,8 @@ impl User {
   }
 
   #[inline]
-  pub fn get_gapi_token(&self) -> Option<String> {
-    self.gapi_token.clone()
+  pub fn get_guser(&self) -> Option<GUser> {
+    self.guser.clone()
   }
 
   #[inline]
@@ -66,8 +73,8 @@ impl User {
   }
 
   #[inline]
-  pub fn set_gapi_token<S: ToString>(&mut self, gapi_token: S) {
-    self.gapi_token = Some(gapi_token.to_string())
+  pub fn set_guser(&mut self, guser: GUser) {
+    self.guser = Some(guser);
   }
 
   #[inline]
@@ -76,9 +83,39 @@ impl User {
   }
 }
 
+impl GUser {
+  pub fn new(auth_token: String, username: String, pfp_url: String) -> Self {
+    Self { auth_token, username, pfp_url }
+  }
+
+  pub fn get_username(&self) -> &str {
+    &self.username
+  }
+
+  pub fn get_auth_token(&self) -> &str {
+    &self.auth_token
+  }
+
+  pub fn get_pfp_url(&self) -> &str {
+    &self.pfp_url
+  }
+
+  pub fn set_auth_token<S: ToString>(&mut self, auth_token: S) {
+    self.auth_token = auth_token.to_string();
+  }
+
+  pub fn set_username<S: ToString>(&mut self, username: S) {
+    self.username = username.to_string();
+  }
+
+  pub fn set_pfp_url<S: ToString>(&mut self, pfp_url: S) {
+    self.pfp_url = pfp_url.to_string();
+  }
+}
+
 impl From<users::Model> for User {
   fn from(value: users::Model) -> Self {
-    Self { model: value, gapi_token: None, session_token: None }
+    Self { model: value, guser: None, session_token: None }
   }
 }
 
