@@ -13,3 +13,4 @@
 - [ ] Refresh tokens (Use the ones from google, maybe have a way to refresh photo archiver JWT tokens?)
 - [ ] Write tests
 - [ ] Come up with scheme for postgres
+- [ ] Endpoints like /api/users/userinfo should have a id parameter so higher privilege users can get lower privilege user info
