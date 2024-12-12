@@ -279,8 +279,8 @@ impl UserManager {
     let username = json["username"].as_str()?;
     let password = json["password"].as_str()?;
 
-    if let Ok(mut u) = { self.database.lock().await.get_user_by(users::Column::Username, username).await } {
-      if let Ok(_) = UserManager::verify_password(password, &u.get_password_hash()) {
+    if let Ok(mut u) = self.database.lock().await.get_user_by(users::Column::Username, username).await {
+      if let Ok(true) = UserManager::verify_password(password, &u.get_password_hash()) {
         let session_token = Self::generate_session_token(u.clone());
         let session_token = session_token.unwrap();
         u.borrow_mut().set_session_token(session_token.as_str());
@@ -295,28 +295,18 @@ impl UserManager {
           )
           .unwrap(),
         );
-      } else {
-        return Some(
-          Response::from_json(
-            401,
-            json!({
-              "error": "Invalid username or password"
-            }),
-          )
-          .unwrap(),
-        );
       }
-    } else {
-      return Some(
-        Response::from_json(
-          401,
-          json!({
-            "error": "Invalid username or password"
-          }),
-        )
-        .unwrap(),
-      );
     }
+
+    return Some(
+      Response::from_json(
+        401,
+        json!({
+          "error": "Invalid username or password"
+        }),
+      )
+      .unwrap(),
+    );
   }
 
   async fn handle_verify_token<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
