@@ -10,10 +10,10 @@
   - [x] Build backend and frontend
   - [ ] Config stuff the nix way
 - [ ] Google APIs
-  - [ ] Authenticate
-  - [ ] Get user info
+  - [x] Authenticate
+  - [x] Get user info
   - [ ] Photos
-    - [ ] List them
+    - [x] List them
     - [ ] Download 
 - [ ] Misc
   - [ ] Use more type alias: (ex: Arc<Mutex<**Whatever**>> -> Shared**Whatever**)
