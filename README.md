@@ -3,9 +3,9 @@
 
 #### TODO:
 - [ ] Write the frontend
- - [x] Login page
- - [ ] Homepage
- - [ ] User settings
+  - [x] Login page
+  - [ ] Homepage
+  - [ ] User settings
 - [ ] Fix the build in `flake.nix`
   - [x] Build backend and frontend
   - [ ] Config stuff the nix way
