@@ -10,9 +10,13 @@
   let username = '';
 
   const fetchUserInfo = async () => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+
     try {
       const response = await axios.get('/api/users/userinfo', {
-        headers: { "Authorization": `Bearer ${$authToken}` }
+        headers: { "Authorization": `Bearer ${$authToken}` },
+        signal
       });
 
       if (response.status === 200 && response.data.google) {
@@ -23,12 +27,27 @@
         googleUser = false;
       }
     } catch (error) {
-      console.error('Error fetching user info:', error);
-      googleUser = false;
+      if (axios.isCancel(error)) {
+        console.log('Request canceled:', error.message);
+      } else {
+        console.error('Error fetching user info:', error);
+        googleUser = false;
+      }
     }
+
+    return controller;
   };
 
+  let controller: AbortController;
+
+  onMount(async () => {
+    controller = await fetchUserInfo();
+  });
+
   const login = async () => {
+    if (controller) {
+      controller.abort()
+    }
     try {
       const oauthUrl = await axios.get('/api/users/oauth/url', {
         headers: { "Authorization": `Bearer ${$authToken}` }
@@ -41,10 +60,6 @@
       console.error('Error during login:', error);
     }
   };
-
-  onMount(() => {
-    fetchUserInfo();
-  });
 </script>
 <!-- {#if googleUser}
 {:else}
