@@ -454,7 +454,7 @@ impl UserManager {
       return Some(Response::from_json(200, json).unwrap());
     }
 
-    None
+    return Some(Response::from_json(401, json!({ "error": "Invalid token" })).unwrap());
   }
 }
 
