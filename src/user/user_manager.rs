@@ -61,6 +61,12 @@ impl UserManagerError {
       Self::AuthenticationError(m) | Self::TokenError(m) => m.clone(),
     }
   }
+
+  pub fn to_json(&self) -> Value {
+    json!({
+      "error": self.get_message()
+    })
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -309,6 +315,23 @@ impl UserManager {
     );
   }
 
+  async fn handle_user_logout<'s, 'r>(&'s mut self, req: Request<'r>) -> Option<Response<'r>> {
+    let id = match self.validate_request(&req).await {
+        Ok(i) => i,
+        Err(e) => {
+          return Some(Response::from_json(401, e.to_json()).unwrap());
+        },
+    };
+
+    if let Some((_, u)) = self.active_users.remove(&id) {
+      trace!("User '{}' logged out", u.get_username());
+      drop(u);
+      return Some(Response::from_json(200, json!({ "success": "Successfully logged out" })).unwrap());
+    };
+
+    return Some(Response::from_json(500, json!({ "error": "This is weird (shouldn't happen)" })).unwrap());
+  }
+
   async fn handle_verify_token<'s, 'r>(&'s self, req: Request<'r>) -> Option<Response<'r>> {
     match self.validate_request(&req).await {
       Ok(_) => {
@@ -486,6 +509,7 @@ impl ApiMethod for UserManager {
       Some("delete") => self.handle_delete_user(req).await,
       Some("modify") => self.handle_modify_user(req).await,
       Some("login") => self.handle_user_login(req).await,
+      Some("logout") => self.handle_user_logout(req).await,
       _ => Some(Response::basic(404, "Not Found")),
     }
   }
